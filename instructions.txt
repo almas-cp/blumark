@@ -1,13 +1,13 @@
 ================================================================================
-                        WIMARK - WiFi-based Attendance System
+                        BLUMARK - Bluetooth-based Attendance System
                               Instructions & Setup Guide
 ================================================================================
 
 OVERVIEW
 --------
-WiMark is a Flutter-based attendance marking application where:
-- Faculty creates a session and enables their phone's WiFi hotspot
-- Students scan for nearby WiFi networks to mark attendance
+BluMark is a Flutter-based attendance marking application where:
+- Faculty creates a session and enables Bluetooth advertising on their phone
+- Students scan for nearby Bluetooth devices to mark attendance
 - Supabase handles authentication and real-time data sync
 
 
@@ -51,7 +51,7 @@ CREATE TABLE session (
   department TEXT NOT NULL CHECK (department IN ('IT', 'CS')),
   batch TEXT NOT NULL CHECK (batch IN ('A', 'B')),
   year INTEGER NOT NULL,
-  hex_ssid TEXT UNIQUE,
+  device_id TEXT UNIQUE,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -68,7 +68,7 @@ CREATE TABLE attendance (
 
 -- Create indexes for performance
 CREATE INDEX idx_session_faculty ON session(faculty_id);
-CREATE INDEX idx_session_hex_ssid ON session(hex_ssid);
+CREATE INDEX idx_session_device_id ON session(device_id);
 CREATE INDEX idx_attendance_student ON attendance(student_id);
 CREATE INDEX idx_attendance_session ON attendance(session_id);
 CREATE INDEX idx_student_dept_batch_year ON student(department, batch, year);
@@ -134,13 +134,13 @@ VALUES ('Alice Student', 'alice@student.edu', 'test123', 'IT', 'A', 2);
    [Live Attendance Screen]
         |
         v
-   MANUAL STEP: Faculty enables personal hotspot in phone settings
+   App starts Bluetooth advertising (BLE peripheral mode)
         |
         v
-   Tap "Check Hotspot Status"
+   Tap "Start Bluetooth Beacon"
         |
         v
-   App detects hotspot SSID and saves to database
+   App broadcasts unique device ID and saves to database
         |
         v
    Students can now scan and mark attendance
@@ -152,7 +152,7 @@ VALUES ('Alice Student', 'alice@student.edu', 'test123', 'IT', 'A', 2);
    Tap "Stop Session" when done
         |
         v
-   Session deactivated, return to dashboard
+   Bluetooth advertising stopped, session deactivated, return to dashboard
 
 
 3. STUDENT FLOW
@@ -168,20 +168,20 @@ VALUES ('Alice Student', 'alice@student.edu', 'test123', 'IT', 'A', 2);
    [Scanning Screen]
         |
         v
-   App requests location permission (required for WiFi scan)
+   App requests Bluetooth and location permissions
         |
         v
    App queries active sessions for student's dept/batch/year
         |
         v
-   App scans nearby WiFi networks
+   App scans for nearby Bluetooth devices (BLE scan)
         |
         v
-   App matches session SSID with nearby networks
+   App matches session device ID with nearby Bluetooth devices
         |
         +---> Match found ---> Mark attendance in database ---> Success!
         |
-        +---> No match ---> Show error (not near hotspot)
+        +---> No match ---> Show error (not near faculty device)
         |
         +---> Already marked ---> Show "already marked" message
 
@@ -201,7 +201,7 @@ lib/
 │
 ├── services/
 │   ├── supabase_service.dart    # All database operations
-│   ├── wifi_service.dart        # Hotspot detection & WiFi scanning
+│   ├── bluetooth_service.dart   # Bluetooth advertising & scanning
 │   └── permission_service.dart  # Runtime permission handling
 │
 ├── screens/
@@ -218,27 +218,28 @@ lib/
 │
 └── utils/
     ├── constants.dart           # Supabase URL, keys, app constants
-    └── ssid_encoder.dart        # SSID encoding utilities (legacy)
+    └── device_id_encoder.dart   # Device ID encoding utilities
 
 
 ================================================================================
                               HOW IT WORKS (Technical)
 ================================================================================
 
-1. HOTSPOT DETECTION
-   - Android 8.0+ restricts programmatic hotspot creation
-   - Solution: Faculty manually enables personal hotspot
-   - App uses wifi_iot package to detect hotspot status and read SSID
-   - SSID is stored in session.hex_ssid column
+1. BLUETOOTH ADVERTISING (Faculty Side)
+   - Uses flutter_blue_plus or flutter_ble_peripheral package
+   - Faculty's phone acts as BLE peripheral/beacon
+   - Broadcasts a unique device identifier
+   - Device ID is stored in session.device_id column
 
-2. WIFI SCANNING (Student Side)
-   - Uses wifi_scan package to scan nearby networks
-   - Requires location permission (Android requirement for WiFi scan)
+2. BLUETOOTH SCANNING (Student Side)
+   - Uses flutter_blue_plus package to scan for BLE devices
+   - Requires Bluetooth and location permissions
    - Scans every 2 seconds during active scan
+   - Detects nearby advertising devices
 
 3. MATCHING LOGIC
    - App fetches active sessions for student's department/batch/year
-   - Compares session SSIDs with nearby WiFi networks
+   - Compares session device IDs with nearby Bluetooth devices
    - If match found and not already marked, creates attendance record
 
 4. REAL-TIME UPDATES
@@ -251,14 +252,27 @@ lib/
                               ANDROID PERMISSIONS
 ================================================================================
 
-Required in AndroidManifest.xml (already configured):
+Required in AndroidManifest.xml:
 
 - INTERNET                    : Network access
-- ACCESS_WIFI_STATE          : Read WiFi status
-- CHANGE_WIFI_STATE          : Modify WiFi settings
-- ACCESS_FINE_LOCATION       : Required for WiFi scanning
-- ACCESS_COARSE_LOCATION     : Required for WiFi scanning
-- NEARBY_WIFI_DEVICES        : Android 12+ WiFi scanning
+- BLUETOOTH                   : Basic Bluetooth access
+- BLUETOOTH_ADMIN             : Bluetooth administration
+- BLUETOOTH_SCAN              : Android 12+ BLE scanning
+- BLUETOOTH_ADVERTISE         : Android 12+ BLE advertising
+- BLUETOOTH_CONNECT           : Android 12+ BLE connections
+- ACCESS_FINE_LOCATION        : Required for Bluetooth scanning
+- ACCESS_COARSE_LOCATION      : Required for Bluetooth scanning
+
+
+================================================================================
+                              IOS PERMISSIONS
+================================================================================
+
+Required in Info.plist:
+
+- NSBluetoothAlwaysUsageDescription    : Bluetooth usage description
+- NSBluetoothPeripheralUsageDescription : Peripheral mode description
+- NSLocationWhenInUseUsageDescription   : Location for BLE scanning
 
 
 ================================================================================
@@ -276,13 +290,13 @@ Required in AndroidManifest.xml (already configured):
 3. Test Faculty Flow:
    - Login as faculty (john@faculty.edu / test123)
    - Create a session
-   - Enable phone hotspot manually
-   - Tap "Check Hotspot Status"
+   - Tap "Start Bluetooth Beacon"
+   - Ensure Bluetooth is enabled on device
 
 4. Test Student Flow (on another device):
    - Login as student (alice@student.edu / test123)
    - Tap "Mark Attendance"
-   - Make sure you're near the faculty's hotspot
+   - Make sure you're near the faculty's phone
    - Attendance should be marked
 
 5. Verify:
@@ -297,15 +311,19 @@ Required in AndroidManifest.xml (already configured):
 "No active sessions found"
   -> Faculty hasn't created a session or session is deactivated
 
-"Hotspot not detected"
-  -> Faculty's hotspot isn't enabled
+"Bluetooth device not detected"
+  -> Faculty's Bluetooth beacon isn't active
   -> Student isn't close enough to faculty's phone
+  -> Bluetooth is disabled on either device
 
 "Permission denied"
-  -> Grant location permission in phone settings
+  -> Grant Bluetooth and location permissions in phone settings
 
 "Already marked attendance"
   -> Student already marked for this session (can only mark once)
+
+"Bluetooth not supported"
+  -> Device doesn't support BLE (Bluetooth Low Energy)
 
 "Lost connection to device" during flutter run
   -> Try: flutter clean && flutter pub get && flutter run
