@@ -103,7 +103,6 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
     final advertiseData = AdvertiseData(
       serviceUuid: serviceUuid,
       manufacturerData: utf8.encode(_sessionToken!),
-      includeTxPowerLevel: true,
     );
 
     // Also set device name with token prefix for easier detection
