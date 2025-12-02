@@ -1,0 +1,216 @@
+import 'dart:async';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/faculty.dart';
+import '../models/student.dart';
+import '../models/session.dart';
+import '../models/attendance.dart';
+
+class SupabaseService {
+  final SupabaseClient _client = Supabase.instance.client;
+
+  // ==================== AUTH ====================
+
+  /// Login - checks both faculty and student tables
+  /// Returns {'type': 'faculty'|'student', 'user': Faculty|Student}
+  Future<Map<String, dynamic>?> login(String email, String password) async {
+    // Check faculty table first
+    final facultyResponse = await _client
+        .from('faculty')
+        .select()
+        .eq('email', email)
+        .eq('password', password)
+        .maybeSingle();
+
+    if (facultyResponse != null) {
+      return {
+        'type': 'faculty',
+        'user': Faculty.fromJson(facultyResponse),
+      };
+    }
+
+    // Check student table
+    final studentResponse = await _client
+        .from('student')
+        .select()
+        .eq('email', email)
+        .eq('password', password)
+        .maybeSingle();
+
+    if (studentResponse != null) {
+      return {
+        'type': 'student',
+        'user': Student.fromJson(studentResponse),
+      };
+    }
+
+    return null;
+  }
+
+  // ==================== SESSION OPERATIONS ====================
+
+  /// Create a new attendance session
+  Future<AttendanceSession> createSession({
+    required String facultyId,
+    required DateTime date,
+    required int hour,
+    required String department,
+    required String batch,
+    required int year,
+  }) async {
+    final response = await _client.from('session').insert({
+      'faculty_id': facultyId,
+      'date': date.toIso8601String().split('T')[0],
+      'hour': hour,
+      'department': department,
+      'batch': batch,
+      'year': year,
+      'is_active': true,
+    }).select().single();
+
+    return AttendanceSession.fromJson(response);
+  }
+
+  /// Update session with device ID when BLE advertising starts
+  Future<void> updateSessionDeviceId(String sessionId, String deviceId) async {
+    await _client.from('session').update({
+      'device_id': deviceId,
+    }).eq('id', sessionId);
+  }
+
+  /// Deactivate session
+  Future<void> endSession(String sessionId) async {
+    await _client.from('session').update({
+      'is_active': false,
+      'device_id': null,
+    }).eq('id', sessionId);
+  }
+
+  /// Get active sessions for a student's department/batch/year
+  Future<List<AttendanceSession>> getActiveSessionsForStudent({
+    required String department,
+    required String batch,
+    required int year,
+  }) async {
+    final response = await _client
+        .from('session')
+        .select('*, faculty:faculty_id(name)')
+        .eq('department', department)
+        .eq('batch', batch)
+        .eq('year', year)
+        .eq('is_active', true)
+        .not('device_id', 'is', null);
+
+    return (response as List)
+        .map((json) => AttendanceSession.fromJson(json))
+        .toList();
+  }
+
+  /// Get session by device ID
+  Future<AttendanceSession?> getSessionByDeviceId(String deviceId) async {
+    final response = await _client
+        .from('session')
+        .select('*, faculty:faculty_id(name)')
+        .eq('device_id', deviceId)
+        .eq('is_active', true)
+        .maybeSingle();
+
+    if (response != null) {
+      return AttendanceSession.fromJson(response);
+    }
+    return null;
+  }
+
+  /// Get faculty's session history
+  Future<List<AttendanceSession>> getFacultySessions(String facultyId) async {
+    final response = await _client
+        .from('session')
+        .select()
+        .eq('faculty_id', facultyId)
+        .order('created_at', ascending: false)
+        .limit(20);
+
+    return (response as List)
+        .map((json) => AttendanceSession.fromJson(json))
+        .toList();
+  }
+
+  // ==================== ATTENDANCE OPERATIONS ====================
+
+  /// Mark student attendance
+  Future<Attendance?> markAttendance({
+    required String studentId,
+    required String sessionId,
+  }) async {
+    try {
+      final response = await _client.from('attendance').insert({
+        'student_id': studentId,
+        'session_id': sessionId,
+        'attendance': 1,
+      }).select().single();
+
+      return Attendance.fromJson(response);
+    } catch (e) {
+      // Might fail if already marked (unique constraint)
+      return null;
+    }
+  }
+
+  /// Check if student already marked attendance for a session
+  Future<bool> hasMarkedAttendance({
+    required String studentId,
+    required String sessionId,
+  }) async {
+    final response = await _client
+        .from('attendance')
+        .select('id')
+        .eq('student_id', studentId)
+        .eq('session_id', sessionId)
+        .maybeSingle();
+
+    return response != null;
+  }
+
+  /// Get attendance list for a session (with student details)
+  Future<List<Attendance>> getSessionAttendance(String sessionId) async {
+    final response = await _client
+        .from('attendance')
+        .select('*, student:student_id(name, email)')
+        .eq('session_id', sessionId)
+        .order('marked_at', ascending: false);
+
+    return (response as List)
+        .map((json) => Attendance.fromJson(json))
+        .toList();
+  }
+
+  /// Get student's attendance history
+  Future<List<Map<String, dynamic>>> getStudentAttendanceHistory(
+      String studentId) async {
+    final response = await _client
+        .from('attendance')
+        .select('*, session:session_id(date, hour, department, batch, year, faculty:faculty_id(name))')
+        .eq('student_id', studentId)
+        .order('marked_at', ascending: false)
+        .limit(50);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  // ==================== REALTIME ====================
+
+  /// Subscribe to attendance updates for a session
+  StreamSubscription<List<Map<String, dynamic>>> subscribeToSessionAttendance(
+    String sessionId,
+    void Function(List<Attendance>) onData,
+  ) {
+    return _client
+        .from('attendance')
+        .stream(primaryKey: ['id'])
+        .eq('session_id', sessionId)
+        .listen((data) async {
+          // Fetch with student details
+          final attendanceList = await getSessionAttendance(sessionId);
+          onData(attendanceList);
+        });
+  }
+}

@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'screens/onboarding_screen.dart';
-import 'screens/student_home_screen.dart';
-import 'screens/faculty_home_screen.dart';
-import 'screens/student_registration_screen.dart';
+import 'utils/constants.dart';
+import 'screens/login_screen.dart';
+import 'screens/faculty/faculty_dashboard.dart';
+import 'screens/student/student_dashboard.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Supabase.initialize(
-    url: 'https://fiiuibpwxskeynkwxbdg.supabase.co',
-    anonKey: 'sb_publishable_omf2pPedD36i57qJGfzp2Q_EHoyfCtj',
+    url: AppConstants.supabaseUrl,
+    anonKey: AppConstants.supabaseAnonKey,
   );
 
   runApp(const BlumarkApp());
@@ -27,36 +27,42 @@ class BlumarkApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Blumark',
+      title: 'BluMark',
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: Brightness.light,
+        ),
         useMaterial3: true,
+        appBarTheme: const AppBarTheme(
+          centerTitle: true,
+          elevation: 0,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          filled: true,
+        ),
+        cardTheme: CardThemeData(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
       ),
       home: const AppRouter(),
     );
-  }
-
-  static Future<bool> showLogoutConfirmation(BuildContext context) async {
-    return await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    ) ?? false;
   }
 
   static Future<void> logout(BuildContext context) async {
@@ -65,7 +71,7 @@ class BlumarkApp extends StatelessWidget {
     if (context.mounted) {
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
         (_) => false,
       );
     }
@@ -81,23 +87,23 @@ class AppRouter extends StatefulWidget {
 
 class _AppRouterState extends State<AppRouter> {
   bool _isLoading = true;
-  String? _userRole;
-  bool _isStudentRegistered = false;
+  String? _userType;
+  String? _userId;
 
   @override
   void initState() {
     super.initState();
-    _checkUserRole();
+    _checkUserSession();
   }
 
-  Future<void> _checkUserRole() async {
+  Future<void> _checkUserSession() async {
     final prefs = await SharedPreferences.getInstance();
-    final role = prefs.getString('user_role');
-    final studentId = prefs.getString('student_id');
+    final userType = prefs.getString(AppConstants.prefUserType);
+    final userId = prefs.getString(AppConstants.prefUserId);
     
     setState(() {
-      _userRole = role;
-      _isStudentRegistered = studentId != null && studentId.isNotEmpty;
+      _userType = userType;
+      _userId = userId;
       _isLoading = false;
     });
   }
@@ -105,21 +111,43 @@ class _AppRouterState extends State<AppRouter> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.bluetooth_connected,
+                size: 80,
+                color: Colors.blue.shade700,
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'BluMark',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue.shade700,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const CircularProgressIndicator(),
+            ],
+          ),
+        ),
       );
     }
 
-    if (_userRole == 'faculty') {
-      return const FacultyHomeScreen();
-    } else if (_userRole == 'student') {
-      // Check if student has completed registration
-      if (_isStudentRegistered) {
-        return const StudentHomeScreen();
+    // Check if user is logged in
+    if (_userType != null && _userId != null) {
+      if (_userType == 'faculty') {
+        return const FacultyDashboard();
+      } else if (_userType == 'student') {
+        return const StudentDashboard();
       }
-      return const StudentRegistrationScreen();
     }
 
-    return const OnboardingScreen();
+    // Not logged in - show login screen
+    return const LoginScreen();
   }
 }

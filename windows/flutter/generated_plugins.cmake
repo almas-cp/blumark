@@ -4,7 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   app_links
-  flutter_ble_peripheral
+  ble_peripheral
   permission_handler_windows
   url_launcher_windows
 )
