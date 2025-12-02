@@ -100,17 +100,21 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
   }
 
   Future<void> _startAdvertising() async {
+    // Check if device supports peripheral mode
+    final isSupported = await _blePeripheral.isSupported;
+    if (!isSupported) {
+      throw Exception('BLE Peripheral mode not supported on this device');
+    }
+
     final advertiseData = AdvertiseData(
       serviceUuid: serviceUuid,
-      manufacturerData: utf8.encode(_sessionToken!),
+      localName: 'ATT_$_sessionToken',
     );
 
-    // Also set device name with token prefix for easier detection
     final advertiseSettings = AdvertiseSettings(
       advertiseMode: AdvertiseMode.advertiseModeBalanced,
       txPowerLevel: AdvertiseTxPower.advertiseTxPowerHigh,
       connectable: false,
-      timeout: 0,
     );
 
     await _blePeripheral.start(
