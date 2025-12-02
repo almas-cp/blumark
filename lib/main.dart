@@ -5,6 +5,7 @@ import 'utils/constants.dart';
 import 'screens/login_screen.dart';
 import 'screens/faculty/faculty_dashboard.dart';
 import 'screens/student/student_dashboard.dart';
+import 'screens/admin/admin_dashboard.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -140,7 +141,9 @@ class _AppRouterState extends State<AppRouter> {
 
     // Check if user is logged in
     if (_userType != null && _userId != null) {
-      if (_userType == 'faculty') {
+      if (_userType == 'admin') {
+        return const AdminDashboard();
+      } else if (_userType == 'faculty') {
         return const FacultyDashboard();
       } else if (_userType == 'student') {
         return const StudentDashboard();

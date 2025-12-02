@@ -10,10 +10,25 @@ class SupabaseService {
 
   // ==================== AUTH ====================
 
-  /// Login - checks both faculty and student tables
-  /// Returns {'type': 'faculty'|'student', 'user': Faculty|Student}
+  /// Login - checks admin, faculty, and student tables
+  /// Returns {'type': 'admin'|'faculty'|'student', 'user': ...}
   Future<Map<String, dynamic>?> login(String email, String password) async {
-    // Check faculty table first
+    // Check admin table first (uses username instead of email)
+    final adminResponse = await _client
+        .from('admin')
+        .select()
+        .eq('username', email)
+        .eq('password', password)
+        .maybeSingle();
+
+    if (adminResponse != null) {
+      return {
+        'type': 'admin',
+        'user': adminResponse,
+      };
+    }
+
+    // Check faculty table
     final facultyResponse = await _client
         .from('faculty')
         .select()
@@ -44,6 +59,68 @@ class SupabaseService {
     }
 
     return null;
+  }
+
+  // ==================== ADMIN OPERATIONS ====================
+
+  /// Get all faculty
+  Future<List<Map<String, dynamic>>> getAllFaculty() async {
+    final response = await _client
+        .from('faculty')
+        .select()
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Get all students
+  Future<List<Map<String, dynamic>>> getAllStudents() async {
+    final response = await _client
+        .from('student')
+        .select()
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Create faculty
+  Future<void> createFaculty({
+    required String name,
+    required String email,
+    required String password,
+  }) async {
+    await _client.from('faculty').insert({
+      'name': name,
+      'email': email,
+      'password': password,
+    });
+  }
+
+  /// Create student
+  Future<void> createStudent({
+    required String name,
+    required String email,
+    required String password,
+    required String department,
+    required String batch,
+    required int year,
+  }) async {
+    await _client.from('student').insert({
+      'name': name,
+      'email': email,
+      'password': password,
+      'department': department,
+      'batch': batch,
+      'year': year,
+    });
+  }
+
+  /// Delete faculty
+  Future<void> deleteFaculty(String id) async {
+    await _client.from('faculty').delete().eq('id', id);
+  }
+
+  /// Delete student
+  Future<void> deleteStudent(String id) async {
+    await _client.from('student').delete().eq('id', id);
   }
 
   // ==================== SESSION OPERATIONS ====================
@@ -127,11 +204,25 @@ class SupabaseService {
         .select()
         .eq('faculty_id', facultyId)
         .order('created_at', ascending: false)
-        .limit(20);
+        .limit(50);
 
     return (response as List)
         .map((json) => AttendanceSession.fromJson(json))
         .toList();
+  }
+
+  /// Delete a session
+  Future<void> deleteSession(String sessionId) async {
+    await _client.from('session').delete().eq('id', sessionId);
+  }
+
+  /// Get session attendance count
+  Future<int> getSessionAttendanceCount(String sessionId) async {
+    final response = await _client
+        .from('attendance')
+        .select('id')
+        .eq('session_id', sessionId);
+    return (response as List).length;
   }
 
   // ==================== ATTENDANCE OPERATIONS ====================

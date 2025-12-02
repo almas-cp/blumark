@@ -6,6 +6,7 @@ import '../models/student.dart';
 import '../utils/constants.dart';
 import 'faculty/faculty_dashboard.dart';
 import 'student/student_dashboard.dart';
+import 'admin/admin_dashboard.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -57,7 +58,18 @@ class _LoginScreenState extends State<LoginScreen> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(AppConstants.prefUserType, result['type']);
 
-      if (result['type'] == 'faculty') {
+      if (result['type'] == 'admin') {
+        final admin = result['user'] as Map<String, dynamic>;
+        await prefs.setString(AppConstants.prefUserType, 'admin');
+        await prefs.setString(AppConstants.prefUserId, admin['id']);
+        await prefs.setString(AppConstants.prefUserName, admin['username']);
+
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminDashboard()),
+        );
+      } else if (result['type'] == 'faculty') {
         final faculty = result['user'] as Faculty;
         await prefs.setString(AppConstants.prefUserId, faculty.id);
         await prefs.setString(AppConstants.prefUserName, faculty.name);
@@ -68,7 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
           context,
           MaterialPageRoute(builder: (_) => const FacultyDashboard()),
         );
-      } else {
+      } else if (result['type'] == 'student') {
         final student = result['user'] as Student;
         await prefs.setString(AppConstants.prefUserId, student.id);
         await prefs.setString(AppConstants.prefUserName, student.name);
@@ -96,15 +108,84 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _showAdminLoginDialog() {
+    final usernameController = TextEditingController();
+    final passwordController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.admin_panel_settings, color: Colors.deepPurple.shade700),
+            const SizedBox(width: 8),
+            const Text('Admin Login'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: usernameController,
+              decoration: const InputDecoration(
+                labelText: 'Username',
+                prefixIcon: Icon(Icons.person),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Password',
+                prefixIcon: Icon(Icons.lock),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              _emailController.text = usernameController.text;
+              _passwordController.text = passwordController.text;
+              _login();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Login'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          TextButton.icon(
+            onPressed: _showAdminLoginDialog,
+            icon: Icon(Icons.admin_panel_settings, color: Colors.deepPurple.shade700),
+            label: Text('Admin', style: TextStyle(color: Colors.deepPurple.shade700)),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             children: [
-              const SizedBox(height: 60),
+              const SizedBox(height: 20),
               // Logo and Title
               Container(
                 padding: const EdgeInsets.all(20),
@@ -158,10 +239,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Please enter your email';
-                        }
-                        if (!value.contains('@')) {
-                          return 'Please enter a valid email';
+                          return 'Please enter your email/username';
                         }
                         return null;
                       },
