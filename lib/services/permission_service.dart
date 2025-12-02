@@ -1,6 +1,21 @@
 import 'package:permission_handler/permission_handler.dart';
 
 class PermissionService {
+  /// Request ALL Bluetooth and location permissions upfront
+  Future<bool> requestAllPermissions() async {
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+      Permission.bluetoothAdvertise,
+      Permission.location,
+      Permission.locationWhenInUse,
+    ].request();
+
+    return statuses.values.every(
+      (status) => status.isGranted || status.isLimited,
+    );
+  }
+
   /// Request Bluetooth permissions for scanning (student side)
   static Future<bool> requestBluetoothScanPermissions() async {
     Map<Permission, PermissionStatus> statuses = await [

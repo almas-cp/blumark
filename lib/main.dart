@@ -6,6 +6,7 @@ import 'screens/login_screen.dart';
 import 'screens/faculty/faculty_dashboard.dart';
 import 'screens/student/student_dashboard.dart';
 import 'screens/admin/admin_dashboard.dart';
+import 'services/permission_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -90,11 +91,25 @@ class _AppRouterState extends State<AppRouter> {
   bool _isLoading = true;
   String? _userType;
   String? _userId;
+  final _permissionService = PermissionService();
 
   @override
   void initState() {
     super.initState();
-    _checkUserSession();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    // Request permissions immediately on app start
+    await _requestPermissions();
+    
+    // Then check user session
+    await _checkUserSession();
+  }
+
+  Future<void> _requestPermissions() async {
+    // Request all Bluetooth and location permissions upfront
+    await _permissionService.requestAllPermissions();
   }
 
   Future<void> _checkUserSession() async {

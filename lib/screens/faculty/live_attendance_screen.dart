@@ -33,6 +33,7 @@ class _LiveAttendanceScreenState extends State<LiveAttendanceScreen> {
   String? _errorMessage;
   List<Attendance> _attendanceList = [];
   StreamSubscription? _realtimeSubscription;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -43,6 +44,7 @@ class _LiveAttendanceScreenState extends State<LiveAttendanceScreen> {
   @override
   void dispose() {
     _realtimeSubscription?.cancel();
+    _refreshTimer?.cancel();
     _stopAdvertising();
     super.dispose();
   }
@@ -122,6 +124,10 @@ class _LiveAttendanceScreenState extends State<LiveAttendanceScreen> {
   }
 
   void _subscribeToAttendance() {
+    // Load initial attendance immediately
+    _loadAttendance();
+    
+    // Subscribe to realtime updates
     _realtimeSubscription = _supabaseService.subscribeToSessionAttendance(
       widget.session.id,
       (attendanceList) {
@@ -130,6 +136,22 @@ class _LiveAttendanceScreenState extends State<LiveAttendanceScreen> {
         }
       },
     );
+
+    // Also start periodic refresh every 3 seconds as backup
+    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _loadAttendance();
+    });
+  }
+
+  Future<void> _loadAttendance() async {
+    try {
+      final list = await _supabaseService.getSessionAttendance(widget.session.id);
+      if (mounted) {
+        setState(() => _attendanceList = list);
+      }
+    } catch (e) {
+      // Ignore errors
+    }
   }
 
   Future<void> _stopSession() async {
