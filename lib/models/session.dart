@@ -6,7 +6,7 @@ class AttendanceSession {
   final String department;
   final String batch;
   final int year;
-  final String? deviceId;
+  final String? hexSsid;
   final bool isActive;
   final DateTime createdAt;
 
@@ -21,7 +21,7 @@ class AttendanceSession {
     required this.department,
     required this.batch,
     required this.year,
-    this.deviceId,
+    this.hexSsid,
     this.isActive = true,
     required this.createdAt,
     this.facultyName,
@@ -36,7 +36,7 @@ class AttendanceSession {
       department: json['department'] as String,
       batch: json['batch'] as String,
       year: json['year'] as int,
-      deviceId: json['device_id'] as String?,
+      hexSsid: json['hex_ssid'] as String?,
       isActive: json['is_active'] as bool? ?? true,
       createdAt: DateTime.parse(json['created_at'] as String),
       facultyName: json['faculty']?['name'] as String?,
@@ -52,7 +52,7 @@ class AttendanceSession {
       'department': department,
       'batch': batch,
       'year': year,
-      'device_id': deviceId,
+      'hex_ssid': hexSsid,
       'is_active': isActive,
       'created_at': createdAt.toIso8601String(),
     };
@@ -66,7 +66,7 @@ class AttendanceSession {
     String? department,
     String? batch,
     int? year,
-    String? deviceId,
+    String? hexSsid,
     bool? isActive,
     DateTime? createdAt,
     String? facultyName,
@@ -79,7 +79,7 @@ class AttendanceSession {
       department: department ?? this.department,
       batch: batch ?? this.batch,
       year: year ?? this.year,
-      deviceId: deviceId ?? this.deviceId,
+      hexSsid: hexSsid ?? this.hexSsid,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       facultyName: facultyName ?? this.facultyName,

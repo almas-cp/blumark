@@ -70,10 +70,10 @@ class SupabaseService {
     return AttendanceSession.fromJson(response);
   }
 
-  /// Update session with device ID when BLE advertising starts
-  Future<void> updateSessionDeviceId(String sessionId, String deviceId) async {
+  /// Update session with hex_ssid when BLE advertising starts
+  Future<void> updateSessionHexSsid(String sessionId, String hexSsid) async {
     await _client.from('session').update({
-      'device_id': deviceId,
+      'hex_ssid': hexSsid,
     }).eq('id', sessionId);
   }
 
@@ -81,7 +81,7 @@ class SupabaseService {
   Future<void> endSession(String sessionId) async {
     await _client.from('session').update({
       'is_active': false,
-      'device_id': null,
+      'hex_ssid': null,
     }).eq('id', sessionId);
   }
 
@@ -98,19 +98,19 @@ class SupabaseService {
         .eq('batch', batch)
         .eq('year', year)
         .eq('is_active', true)
-        .not('device_id', 'is', null);
+        .not('hex_ssid', 'is', null);
 
     return (response as List)
         .map((json) => AttendanceSession.fromJson(json))
         .toList();
   }
 
-  /// Get session by device ID
-  Future<AttendanceSession?> getSessionByDeviceId(String deviceId) async {
+  /// Get session by hex_ssid
+  Future<AttendanceSession?> getSessionByHexSsid(String hexSsid) async {
     final response = await _client
         .from('session')
         .select('*, faculty:faculty_id(name)')
-        .eq('device_id', deviceId)
+        .eq('hex_ssid', hexSsid)
         .eq('is_active', true)
         .maybeSingle();
 

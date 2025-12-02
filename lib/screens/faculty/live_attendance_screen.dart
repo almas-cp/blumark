@@ -85,11 +85,11 @@ class _LiveAttendanceScreenState extends State<LiveAttendanceScreen> {
         return;
       }
 
-      // Generate session token
+      // Generate session token (hex_ssid)
       _sessionToken = DeviceIdEncoder.encodeForBle(widget.session.id);
 
-      // Update session with device ID
-      await _supabaseService.updateSessionDeviceId(
+      // Update session with hex_ssid
+      await _supabaseService.updateSessionHexSsid(
         widget.session.id,
         _sessionToken!,
       );
@@ -301,7 +301,7 @@ class _LiveAttendanceScreenState extends State<LiveAttendanceScreen> {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      'Device ID: $_sessionToken',
+                      'HEX SSID: $_sessionToken',
                       style: const TextStyle(
                         color: Colors.white,
                         fontFamily: 'monospace',

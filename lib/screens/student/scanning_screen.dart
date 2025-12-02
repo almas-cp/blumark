@@ -140,8 +140,8 @@ class _ScanningScreenState extends State<ScanningScreen>
     _animationController.stop();
 
     try {
-      // Get session by device ID
-      final session = await _supabaseService.getSessionByDeviceId(sessionToken);
+      // Get session by hex_ssid
+      final session = await _supabaseService.getSessionByHexSsid(sessionToken);
 
       if (session == null) {
         setState(() {
