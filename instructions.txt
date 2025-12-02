@@ -1,0 +1,314 @@
+================================================================================
+                        WIMARK - WiFi-based Attendance System
+                              Instructions & Setup Guide
+================================================================================
+
+OVERVIEW
+--------
+WiMark is a Flutter-based attendance marking application where:
+- Faculty creates a session and enables their phone's WiFi hotspot
+- Students scan for nearby WiFi networks to mark attendance
+- Supabase handles authentication and real-time data sync
+
+
+================================================================================
+                              DATABASE SETUP (Supabase)
+================================================================================
+
+Run this SQL in Supabase Dashboard > SQL Editor:
+
+--------------------------------------------------------------------------------
+
+-- Create faculty table
+CREATE TABLE faculty (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  user_type TEXT DEFAULT 'faculty',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create student table
+CREATE TABLE student (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  department TEXT NOT NULL CHECK (department IN ('IT', 'CS')),
+  batch TEXT NOT NULL CHECK (batch IN ('A', 'B')),
+  year INTEGER NOT NULL,
+  user_type TEXT DEFAULT 'student',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create session table
+CREATE TABLE session (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  faculty_id UUID REFERENCES faculty(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  hour INTEGER NOT NULL CHECK (hour BETWEEN 1 AND 6),
+  department TEXT NOT NULL CHECK (department IN ('IT', 'CS')),
+  batch TEXT NOT NULL CHECK (batch IN ('A', 'B')),
+  year INTEGER NOT NULL,
+  hex_ssid TEXT UNIQUE,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create attendance table
+CREATE TABLE attendance (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID REFERENCES student(id) ON DELETE CASCADE,
+  session_id UUID REFERENCES session(id) ON DELETE CASCADE,
+  attendance INTEGER NOT NULL CHECK (attendance IN (0, 1)),
+  marked_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(student_id, session_id)
+);
+
+-- Create indexes for performance
+CREATE INDEX idx_session_faculty ON session(faculty_id);
+CREATE INDEX idx_session_hex_ssid ON session(hex_ssid);
+CREATE INDEX idx_attendance_student ON attendance(student_id);
+CREATE INDEX idx_attendance_session ON attendance(session_id);
+CREATE INDEX idx_student_dept_batch_year ON student(department, batch, year);
+
+--------------------------------------------------------------------------------
+
+TEST DATA (Optional):
+
+-- Insert a test faculty
+INSERT INTO faculty (name, email, password) 
+VALUES ('Dr. John Smith', 'john@faculty.edu', 'test123');
+
+-- Insert a test student
+INSERT INTO student (name, email, password, department, batch, year) 
+VALUES ('Alice Student', 'alice@student.edu', 'test123', 'IT', 'A', 2);
+
+--------------------------------------------------------------------------------
+
+
+================================================================================
+                              APPLICATION FLOW
+================================================================================
+
+1. LOGIN FLOW
+-------------
+   [Login Screen]
+        |
+        v
+   Enter email & password
+        |
+        v
+   App checks BOTH tables (faculty & student)
+        |
+        +---> If found in faculty table ---> Faculty Dashboard
+        |
+        +---> If found in student table ---> Student Dashboard
+        |
+        +---> If not found ---> Show error
+
+
+2. FACULTY FLOW
+---------------
+   [Faculty Dashboard]
+        |
+        v
+   Tap "Create New Session"
+        |
+        v
+   [Session Creation Screen]
+   - Select Department (IT/CS)
+   - Select Batch (A/B)
+   - Select Year (1/2/3/4)
+   - Select Hour/Period (1-6)
+   - Select Date
+        |
+        v
+   Tap "Create Session"
+        |
+        v
+   Session record created in Supabase
+        |
+        v
+   [Live Attendance Screen]
+        |
+        v
+   MANUAL STEP: Faculty enables personal hotspot in phone settings
+        |
+        v
+   Tap "Check Hotspot Status"
+        |
+        v
+   App detects hotspot SSID and saves to database
+        |
+        v
+   Students can now scan and mark attendance
+        |
+        v
+   Real-time attendance list updates as students mark
+        |
+        v
+   Tap "Stop Session" when done
+        |
+        v
+   Session deactivated, return to dashboard
+
+
+3. STUDENT FLOW
+---------------
+   [Student Dashboard]
+   - Shows profile (name, department, batch, year)
+   - Shows attendance history
+        |
+        v
+   Tap "Mark Attendance"
+        |
+        v
+   [Scanning Screen]
+        |
+        v
+   App requests location permission (required for WiFi scan)
+        |
+        v
+   App queries active sessions for student's dept/batch/year
+        |
+        v
+   App scans nearby WiFi networks
+        |
+        v
+   App matches session SSID with nearby networks
+        |
+        +---> Match found ---> Mark attendance in database ---> Success!
+        |
+        +---> No match ---> Show error (not near hotspot)
+        |
+        +---> Already marked ---> Show "already marked" message
+
+
+================================================================================
+                              FILE STRUCTURE
+================================================================================
+
+lib/
+├── main.dart                    # App entry, Supabase init, theme
+│
+├── models/
+│   ├── faculty.dart             # Faculty data model
+│   ├── student.dart             # Student data model
+│   ├── session.dart             # AttendanceSession data model
+│   └── attendance.dart          # Attendance data model
+│
+├── services/
+│   ├── supabase_service.dart    # All database operations
+│   ├── wifi_service.dart        # Hotspot detection & WiFi scanning
+│   └── permission_service.dart  # Runtime permission handling
+│
+├── screens/
+│   ├── login_screen.dart        # Unified login for faculty/student
+│   │
+│   ├── faculty/
+│   │   ├── faculty_dashboard.dart       # Faculty home screen
+│   │   ├── session_creation_screen.dart # Create new session
+│   │   └── live_attendance_screen.dart  # Monitor live attendance
+│   │
+│   └── student/
+│       ├── student_dashboard.dart       # Student home screen
+│       └── scanning_screen.dart         # Scan & mark attendance
+│
+└── utils/
+    ├── constants.dart           # Supabase URL, keys, app constants
+    └── ssid_encoder.dart        # SSID encoding utilities (legacy)
+
+
+================================================================================
+                              HOW IT WORKS (Technical)
+================================================================================
+
+1. HOTSPOT DETECTION
+   - Android 8.0+ restricts programmatic hotspot creation
+   - Solution: Faculty manually enables personal hotspot
+   - App uses wifi_iot package to detect hotspot status and read SSID
+   - SSID is stored in session.hex_ssid column
+
+2. WIFI SCANNING (Student Side)
+   - Uses wifi_scan package to scan nearby networks
+   - Requires location permission (Android requirement for WiFi scan)
+   - Scans every 2 seconds during active scan
+
+3. MATCHING LOGIC
+   - App fetches active sessions for student's department/batch/year
+   - Compares session SSIDs with nearby WiFi networks
+   - If match found and not already marked, creates attendance record
+
+4. REAL-TIME UPDATES
+   - Uses Supabase Realtime to subscribe to attendance table
+   - Faculty sees new attendance entries instantly
+   - No polling required
+
+
+================================================================================
+                              ANDROID PERMISSIONS
+================================================================================
+
+Required in AndroidManifest.xml (already configured):
+
+- INTERNET                    : Network access
+- ACCESS_WIFI_STATE          : Read WiFi status
+- CHANGE_WIFI_STATE          : Modify WiFi settings
+- ACCESS_FINE_LOCATION       : Required for WiFi scanning
+- ACCESS_COARSE_LOCATION     : Required for WiFi scanning
+- NEARBY_WIFI_DEVICES        : Android 12+ WiFi scanning
+
+
+================================================================================
+                              TESTING THE APP
+================================================================================
+
+1. Setup Supabase:
+   - Create project at supabase.com
+   - Run the SQL schema above
+   - Add test faculty and student records
+
+2. Configure App:
+   - Update Supabase URL and key in lib/utils/constants.dart
+
+3. Test Faculty Flow:
+   - Login as faculty (john@faculty.edu / test123)
+   - Create a session
+   - Enable phone hotspot manually
+   - Tap "Check Hotspot Status"
+
+4. Test Student Flow (on another device):
+   - Login as student (alice@student.edu / test123)
+   - Tap "Mark Attendance"
+   - Make sure you're near the faculty's hotspot
+   - Attendance should be marked
+
+5. Verify:
+   - Faculty should see student's name appear in real-time
+   - Student should see success message
+
+
+================================================================================
+                              TROUBLESHOOTING
+================================================================================
+
+"No active sessions found"
+  -> Faculty hasn't created a session or session is deactivated
+
+"Hotspot not detected"
+  -> Faculty's hotspot isn't enabled
+  -> Student isn't close enough to faculty's phone
+
+"Permission denied"
+  -> Grant location permission in phone settings
+
+"Already marked attendance"
+  -> Student already marked for this session (can only mark once)
+
+"Lost connection to device" during flutter run
+  -> Try: flutter clean && flutter pub get && flutter run
+
+
+================================================================================
