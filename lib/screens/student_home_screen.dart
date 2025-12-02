@@ -137,16 +137,32 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
         
         for (var result in results) {
           final name = result.device.platformName;
+          final advName = result.advertisementData.advName;
           final services = result.advertisementData.serviceUuids;
+          final mfgData = result.advertisementData.manufacturerData;
           
-          // Log devices with names or our service
-          if (name.isNotEmpty || services.isNotEmpty) {
-            _log('Found: $name | Services: ${services.length} | RSSI: ${result.rssi}');
+          // Log devices with names, services, or manufacturer data
+          if (name.isNotEmpty || services.isNotEmpty || mfgData.isNotEmpty) {
+            _log('Found: ${name.isEmpty ? advName : name} | Svc: ${services.length} | Mfg: ${mfgData.keys} | RSSI: ${result.rssi}');
           }
 
-          // Check for ATT_ prefix in name
+          // Check for ATT_ prefix in device name
           if (name.startsWith('ATT_')) {
-            _log('*** FOUND ATTENDANCE BEACON: $name ***');
+            _log('*** FOUND ATTENDANCE BEACON (name): $name ***');
+            _handleFoundSession(result);
+            return;
+          }
+
+          // Check for ATT_ prefix in advertisement name
+          if (advName.startsWith('ATT_')) {
+            _log('*** FOUND ATTENDANCE BEACON (advName): $advName ***');
+            _handleFoundSession(result);
+            return;
+          }
+
+          // Check manufacturer data for our company ID (0xFFFF)
+          if (mfgData.containsKey(0xFFFF) || mfgData.containsKey(65535)) {
+            _log('*** FOUND BY MANUFACTURER DATA ***');
             _handleFoundSession(result);
             return;
           }
@@ -188,6 +204,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
     _scanSubscription?.cancel();
 
     _log('Processing beacon: ${result.device.platformName}');
+    _log('advName: ${result.advertisementData.advName}');
+    _log('Manufacturer data keys: ${result.advertisementData.manufacturerData.keys}');
     setState(() => _status = 'Session found! Marking attendance...');
 
     try {
@@ -196,22 +214,37 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> {
       // Try device name first
       if (result.device.platformName.startsWith('ATT_')) {
         sessionToken = result.device.platformName.substring(4);
-        _log('Token from name: $sessionToken');
+        _log('Token from platformName: $sessionToken');
       }
       
-      // Try manufacturer data
-      if (sessionToken == null && result.advertisementData.manufacturerData.isNotEmpty) {
-        final data = result.advertisementData.manufacturerData.values.first;
-        sessionToken = utf8.decode(data);
-        _log('Token from manufacturer data: $sessionToken');
-      }
-
       // Try local name from advertisement
       if (sessionToken == null) {
         final localName = result.advertisementData.advName;
         if (localName.startsWith('ATT_')) {
           sessionToken = localName.substring(4);
           _log('Token from advName: $sessionToken');
+        }
+      }
+
+      // Try manufacturer data with our company ID (0xFFFF = 65535)
+      if (sessionToken == null) {
+        final mfgData = result.advertisementData.manufacturerData;
+        // Check both int representations
+        final data = mfgData[65535] ?? mfgData[0xFFFF];
+        if (data != null && data.isNotEmpty) {
+          sessionToken = String.fromCharCodes(data);
+          _log('Token from manufacturer data: $sessionToken');
+        }
+      }
+      
+      // Fallback: try any manufacturer data
+      if (sessionToken == null && result.advertisementData.manufacturerData.isNotEmpty) {
+        final data = result.advertisementData.manufacturerData.values.first;
+        try {
+          sessionToken = utf8.decode(data);
+          _log('Token from raw manufacturer data: $sessionToken');
+        } catch (e) {
+          _log('Could not decode manufacturer data: $e');
         }
       }
 

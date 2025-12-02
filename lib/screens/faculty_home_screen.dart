@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
+import 'package:ble_peripheral/ble_peripheral.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -15,7 +15,6 @@ class FacultyHomeScreen extends StatefulWidget {
 
 class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
   final _facultyNameController = TextEditingController();
-  final _blePeripheral = FlutterBlePeripheral();
 
   bool _isSessionActive = false;
   bool _isLoading = false;
@@ -35,7 +34,7 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _checkPeripheralSupport();
+    _initBlePeripheral();
   }
 
   @override
@@ -54,20 +53,21 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
     });
   }
 
-  Future<void> _checkPeripheralSupport() async {
+
+  Future<void> _initBlePeripheral() async {
     try {
-      _isPeripheralSupported = await _blePeripheral.isSupported;
-      _log('BLE Peripheral supported: $_isPeripheralSupported');
+      await BlePeripheral.initialize();
+      _log('BLE Peripheral initialized');
       
-      final isAdvertising = await _blePeripheral.isAdvertising;
-      _log('Currently advertising: $isAdvertising');
+      final isSupported = await BlePeripheral.isSupported();
+      _isPeripheralSupported = isSupported ?? false;
+      _log('BLE Peripheral supported: $_isPeripheralSupported');
       
       setState(() {});
     } catch (e) {
-      _log('Error checking peripheral support: $e');
+      _log('Error initializing BLE Peripheral: $e');
     }
   }
-
 
   Future<void> _checkPermissions() async {
     _log('Checking permissions...');
@@ -124,7 +124,7 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Generate session token
+      // Generate session token (8 chars to fit in BLE name)
       _sessionToken = const Uuid().v4().substring(0, 8);
       _log('Generated token: $_sessionToken');
 
@@ -160,48 +160,60 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
     }
   }
 
+
   Future<void> _startAdvertising() async {
     _log('Starting BLE advertising...');
     
-    // Check support
-    final isSupported = await _blePeripheral.isSupported;
-    _log('Peripheral supported: $isSupported');
-    if (!isSupported) {
-      throw Exception('BLE Peripheral mode not supported');
-    }
-
     final localName = 'ATT_$_sessionToken';
     _log('Advertising name: $localName');
     _log('Service UUID: $serviceUuid');
 
-    final advertiseData = AdvertiseData(
-      serviceUuid: serviceUuid,
-      localName: localName,
-    );
+    try {
+      // First add a service
+      await BlePeripheral.addService(
+        BleService(
+          uuid: serviceUuid,
+          primary: true,
+          characteristics: [],
+        ),
+      );
+      _log('Service added');
 
-    final advertiseSettings = AdvertiseSettings(
-      advertiseMode: AdvertiseMode.advertiseModeBalanced,
-      txPowerLevel: AdvertiseTxPower.advertiseTxPowerHigh,
-      connectable: false,
-    );
+      // Start advertising with the local name and service
+      await BlePeripheral.startAdvertising(
+        services: [serviceUuid],
+        localName: localName,
+      );
+      _log('startAdvertising called');
 
-    _log('Calling _blePeripheral.start()...');
-    await _blePeripheral.start(
-      advertiseData: advertiseData,
-      advertiseSettings: advertiseSettings,
-    );
-
-    // Verify advertising started
-    await Future.delayed(const Duration(milliseconds: 500));
-    final isAdvertising = await _blePeripheral.isAdvertising;
-    _log('Advertising started: $isAdvertising');
-    setState(() => _isAdvertising = isAdvertising);
+      // Check status after a delay
+      await Future.delayed(const Duration(milliseconds: 500));
+      final isAdv = await BlePeripheral.isAdvertising();
+      _log('isAdvertising: $isAdv');
+      setState(() => _isAdvertising = isAdv ?? false);
+      
+    } catch (e) {
+      _log('Advertising error: $e');
+      // Try with empty services list
+      try {
+        _log('Retrying with empty services...');
+        await BlePeripheral.startAdvertising(
+          services: [],
+          localName: localName,
+        );
+        _log('Retry succeeded');
+        setState(() => _isAdvertising = true);
+      } catch (e2) {
+        _log('Retry also failed: $e2');
+        rethrow;
+      }
+    }
   }
 
   Future<void> _stopAdvertising() async {
     try {
       _log('Stopping advertising...');
-      await _blePeripheral.stop();
+      await BlePeripheral.stopAdvertising();
       setState(() => _isAdvertising = false);
       _log('Advertising stopped');
     } catch (e) {
@@ -224,7 +236,6 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
           }
         });
   }
-
 
   Future<void> _endSession() async {
     _log('--- Ending session ---');
@@ -265,6 +276,7 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -274,7 +286,7 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              _checkPeripheralSupport();
+              _initBlePeripheral();
               _checkPermissions();
             },
           ),
@@ -294,7 +306,6 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Control section
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -313,10 +324,8 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
                     ElevatedButton.icon(
                       onPressed: _isLoading ? null : _startSession,
                       icon: _isLoading
-                          ? const SizedBox(
-                              width: 16, height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
+                          ? const SizedBox(width: 16, height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                           : const Icon(Icons.play_arrow),
                       label: const Text('Start Session'),
                       style: ElevatedButton.styleFrom(
@@ -331,32 +340,24 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
                       decoration: BoxDecoration(
                         color: _isAdvertising ? Colors.green.shade100 : Colors.orange.shade100,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: _isAdvertising ? Colors.green : Colors.orange,
-                        ),
+                        border: Border.all(color: _isAdvertising ? Colors.green : Colors.orange),
                       ),
                       child: Column(
                         children: [
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
-                                _isAdvertising ? Icons.bluetooth : Icons.bluetooth_disabled,
-                                color: _isAdvertising ? Colors.green : Colors.orange,
-                              ),
+                              Icon(_isAdvertising ? Icons.bluetooth : Icons.bluetooth_disabled,
+                                  color: _isAdvertising ? Colors.green : Colors.orange),
                               const SizedBox(width: 8),
-                              Text(
-                                _isAdvertising ? 'Broadcasting' : 'Not Broadcasting',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: _isAdvertising ? Colors.green : Colors.orange,
-                                ),
-                              ),
+                              Text(_isAdvertising ? 'Broadcasting' : 'Not Broadcasting',
+                                  style: TextStyle(fontWeight: FontWeight.bold,
+                                      color: _isAdvertising ? Colors.green : Colors.orange)),
                             ],
                           ),
                           const SizedBox(height: 4),
                           Text('Token: $_sessionToken'),
-                          Text('Session ID: ${_sessionId?.substring(0, 8)}...'),
+                          Text('Name: ATT_$_sessionToken'),
                         ],
                       ),
                     ),
@@ -370,10 +371,8 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            '${_attendanceList.length}',
-                            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.blue),
-                          ),
+                          Text('${_attendanceList.length}',
+                              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.blue)),
                           const SizedBox(width: 8),
                           const Text('students checked in'),
                         ],
@@ -384,86 +383,58 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
                       onPressed: _isLoading ? null : _endSession,
                       icon: const Icon(Icons.stop),
                       label: const Text('End Session'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                      ),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
                     ),
                   ],
                 ],
               ),
             ),
-
-            // Debug panel
             Expanded(
               child: DefaultTabController(
                 length: 3,
                 child: Column(
                   children: [
-                    const TabBar(
-                      tabs: [
-                        Tab(text: 'Logs'),
-                        Tab(text: 'Attendance'),
-                        Tab(text: 'Status'),
-                      ],
-                    ),
+                    const TabBar(tabs: [Tab(text: 'Logs'), Tab(text: 'Attendance'), Tab(text: 'Status')]),
                     Expanded(
                       child: TabBarView(
                         children: [
-                          // Logs tab
                           Container(
                             color: Colors.black87,
                             child: ListView.builder(
                               padding: const EdgeInsets.all(8),
                               itemCount: _debugLogs.length,
-                              itemBuilder: (ctx, i) => Text(
-                                _debugLogs[i],
-                                style: const TextStyle(
-                                  fontFamily: 'monospace',
-                                  fontSize: 11,
-                                  color: Colors.greenAccent,
-                                ),
-                              ),
+                              itemBuilder: (ctx, i) => Text(_debugLogs[i],
+                                  style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.greenAccent)),
                             ),
                           ),
-                          // Attendance tab
                           _attendanceList.isEmpty
                               ? const Center(child: Text('No students yet'))
                               : ListView.builder(
                                   itemCount: _attendanceList.length,
                                   itemBuilder: (ctx, i) {
-                                    final record = _attendanceList[i];
+                                    final r = _attendanceList[i];
                                     return ListTile(
                                       leading: CircleAvatar(child: Text('${i + 1}')),
-                                      title: Text(record['student_name'] ?? ''),
-                                      subtitle: Text(record['roll_number'] ?? ''),
-                                      trailing: Text(_formatTime(record['timestamp'])),
+                                      title: Text(r['student_name'] ?? ''),
+                                      subtitle: Text(r['roll_number'] ?? ''),
                                     );
                                   },
                                 ),
-                          // Status tab
                           Padding(
                             padding: const EdgeInsets.all(16),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'BLE Peripheral Supported: $_isPeripheralSupported',
-                                  style: TextStyle(
-                                    color: _isPeripheralSupported ? Colors.green : Colors.red,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                                Text('BLE Peripheral Supported: $_isPeripheralSupported',
+                                    style: TextStyle(color: _isPeripheralSupported ? Colors.green : Colors.red, fontWeight: FontWeight.bold)),
                                 Text('Currently Advertising: $_isAdvertising'),
                                 const Divider(),
                                 const Text('Permissions:', style: TextStyle(fontWeight: FontWeight.bold)),
-                                ..._permissionStatuses.entries.map((e) => Text(
-                                  '${e.key.toString().split('.').last}: ${e.value.toString().split('.').last}'
-                                )),
+                                ..._permissionStatuses.entries.map((e) =>
+                                    Text('${e.key.toString().split('.').last}: ${e.value.toString().split('.').last}')),
                                 const Divider(),
                                 Text('Service UUID: $serviceUuid'),
                                 if (_sessionToken != null) Text('Broadcast Name: ATT_$_sessionToken'),
-                                if (_sessionId != null) Text('Session ID: $_sessionId'),
                               ],
                             ),
                           ),
@@ -478,15 +449,5 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
         ),
       ),
     );
-  }
-
-  String _formatTime(String? timestamp) {
-    if (timestamp == null) return '';
-    try {
-      final dt = DateTime.parse(timestamp).toLocal();
-      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } catch (_) {
-      return '';
-    }
   }
 }
