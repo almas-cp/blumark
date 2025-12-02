@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/student_home_screen.dart';
 import 'screens/faculty_home_screen.dart';
+import 'screens/student_registration_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,17 +22,53 @@ final supabase = Supabase.instance.client;
 class BlumarkApp extends StatelessWidget {
   const BlumarkApp({super.key});
 
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Blumark',
       debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
       home: const AppRouter(),
     );
+  }
+
+  static Future<bool> showLogoutConfirmation(BuildContext context) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
+  static Future<void> logout(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    if (context.mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+        (_) => false,
+      );
+    }
   }
 }
 
@@ -45,6 +82,7 @@ class AppRouter extends StatefulWidget {
 class _AppRouterState extends State<AppRouter> {
   bool _isLoading = true;
   String? _userRole;
+  bool _isStudentRegistered = false;
 
   @override
   void initState() {
@@ -54,8 +92,12 @@ class _AppRouterState extends State<AppRouter> {
 
   Future<void> _checkUserRole() async {
     final prefs = await SharedPreferences.getInstance();
+    final role = prefs.getString('user_role');
+    final studentId = prefs.getString('student_id');
+    
     setState(() {
-      _userRole = prefs.getString('user_role');
+      _userRole = role;
+      _isStudentRegistered = studentId != null && studentId.isNotEmpty;
       _isLoading = false;
     });
   }
@@ -71,7 +113,11 @@ class _AppRouterState extends State<AppRouter> {
     if (_userRole == 'faculty') {
       return const FacultyHomeScreen();
     } else if (_userRole == 'student') {
-      return const StudentHomeScreen();
+      // Check if student has completed registration
+      if (_isStudentRegistered) {
+        return const StudentHomeScreen();
+      }
+      return const StudentRegistrationScreen();
     }
 
     return const OnboardingScreen();

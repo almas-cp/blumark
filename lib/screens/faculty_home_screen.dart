@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../main.dart';
+import 'onboarding_screen.dart';
 
 class FacultyHomeScreen extends StatefulWidget {
   const FacultyHomeScreen({super.key});
@@ -51,6 +52,27 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
       _debugLogs.insert(0, '[$timestamp] $message');
       if (_debugLogs.length > 50) _debugLogs.removeLast();
     });
+  }
+
+  Future<bool> _showLogoutConfirmation() async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    ) ?? false;
   }
 
 
@@ -295,10 +317,17 @@ class _FacultyHomeScreenState extends State<FacultyHomeScreen> {
             onPressed: _isSessionActive
                 ? null
                 : () async {
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.clear();
-                    if (!mounted) return;
-                    Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
+                    final confirmed = await _showLogoutConfirmation();
+                    if (confirmed && mounted) {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.clear();
+                      if (!mounted) return;
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+                        (_) => false,
+                      );
+                    }
                   },
           ),
         ],
