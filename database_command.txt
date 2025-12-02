@@ -1,0 +1,247 @@
+-- =====================================================
+-- COMPLETE SUPABASE SQL SETUP FOR ATTENDANCE SYSTEM
+-- =====================================================
+
+-- 1. CREATE TABLES
+-- =====================================================
+
+-- Students table
+CREATE TABLE IF NOT EXISTS students (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  batch TEXT NOT NULL,
+  roll_number TEXT NOT NULL UNIQUE,
+  bt_mac TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Sessions table
+CREATE TABLE IF NOT EXISTS sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  faculty_name TEXT NOT NULL,
+  session_token TEXT NOT NULL UNIQUE,
+  start_time TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  end_time TIMESTAMP WITH TIME ZONE,
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Attendance records table
+CREATE TABLE IF NOT EXISTS attendance_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  student_name TEXT NOT NULL,
+  roll_number TEXT NOT NULL,
+  timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(session_id, student_id)
+);
+
+-- Create indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_attendance_session ON attendance_records(session_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_student ON attendance_records(student_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_students_roll ON students(roll_number);
+
+-- =====================================================
+-- 2. CREATE STORED PROCEDURES/FUNCTIONS
+-- =====================================================
+
+-- Function to mark attendance (prevents duplicates)
+CREATE OR REPLACE FUNCTION mark_attendance(
+    p_session_id UUID,
+    p_student_id UUID,
+    p_student_name TEXT,
+    p_roll_number TEXT
+) RETURNS JSON AS $$
+DECLARE
+    v_result JSON;
+    v_session_status TEXT;
+BEGIN
+    -- Check if session is active
+    SELECT status INTO v_session_status 
+    FROM sessions 
+    WHERE id = p_session_id;
+    
+    IF v_session_status IS NULL THEN
+        RETURN json_build_object(
+            'success', false, 
+            'message', 'Session not found'
+        );
+    END IF;
+    
+    IF v_session_status != 'active' THEN
+        RETURN json_build_object(
+            'success', false, 
+            'message', 'Session has ended'
+        );
+    END IF;
+    
+    -- Check if already marked
+    IF EXISTS (
+        SELECT 1 FROM attendance_records 
+        WHERE session_id = p_session_id 
+          AND student_id = p_student_id
+    ) THEN
+        RETURN json_build_object(
+            'success', false, 
+            'message', 'Attendance already marked'
+        );
+    END IF;
+    
+    -- Insert attendance record
+    INSERT INTO attendance_records (session_id, student_id, student_name, roll_number)
+    VALUES (p_session_id, p_student_id, p_student_name, p_roll_number);
+    
+    RETURN json_build_object(
+        'success', true, 
+        'message', 'Attendance marked successfully'
+    );
+    
+EXCEPTION WHEN OTHERS THEN
+    RETURN json_build_object(
+        'success', false, 
+        'message', SQLERRM
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get session by token
+CREATE OR REPLACE FUNCTION get_session_by_token(p_token TEXT)
+RETURNS TABLE (
+    session_id UUID,
+    faculty_name TEXT,
+    start_time TIMESTAMP WITH TIME ZONE,
+    status TEXT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT id, sessions.faculty_name, sessions.start_time, sessions.status
+    FROM sessions
+    WHERE session_token = p_token AND status = 'active';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to end session
+CREATE OR REPLACE FUNCTION end_session(p_session_id UUID)
+RETURNS JSON AS $$
+DECLARE
+    v_attendance_count INT;
+BEGIN
+    -- Count total attendance
+    SELECT COUNT(*) INTO v_attendance_count
+    FROM attendance_records
+    WHERE session_id = p_session_id;
+    
+    -- Update session status
+    UPDATE sessions
+    SET status = 'completed',
+        end_time = NOW()
+    WHERE id = p_session_id;
+    
+    RETURN json_build_object(
+        'success', true,
+        'total_attendance', v_attendance_count,
+        'message', 'Session ended successfully'
+    );
+    
+EXCEPTION WHEN OTHERS THEN
+    RETURN json_build_object(
+        'success', false,
+        'message', SQLERRM
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get attendance count for a session
+CREATE OR REPLACE FUNCTION get_attendance_count(p_session_id UUID)
+RETURNS INT AS $$
+DECLARE
+    v_count INT;
+BEGIN
+    SELECT COUNT(*) INTO v_count
+    FROM attendance_records
+    WHERE session_id = p_session_id;
+    
+    RETURN v_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- =====================================================
+-- 3. ENABLE ROW LEVEL SECURITY (RLS)
+-- =====================================================
+
+ALTER TABLE students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE attendance_records ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for students table
+CREATE POLICY "Allow public read access to students"
+ON students FOR SELECT
+TO public
+USING (true);
+
+CREATE POLICY "Allow public insert to students"
+ON students FOR INSERT
+TO public
+WITH CHECK (true);
+
+-- RLS Policies for sessions table
+CREATE POLICY "Allow public read access to sessions"
+ON sessions FOR SELECT
+TO public
+USING (true);
+
+CREATE POLICY "Allow public insert to sessions"
+ON sessions FOR INSERT
+TO public
+WITH CHECK (true);
+
+CREATE POLICY "Allow public update to sessions"
+ON sessions FOR UPDATE
+TO public
+USING (true);
+
+-- RLS Policies for attendance_records table
+CREATE POLICY "Allow public read access to attendance_records"
+ON attendance_records FOR SELECT
+TO public
+USING (true);
+
+CREATE POLICY "Allow public insert to attendance_records"
+ON attendance_records FOR INSERT
+TO public
+WITH CHECK (true);
+
+-- =====================================================
+-- 4. ENABLE REALTIME FOR TABLES
+-- =====================================================
+
+-- Enable realtime for attendance_records (for live updates on faculty dashboard)
+ALTER PUBLICATION supabase_realtime ADD TABLE attendance_records;
+
+-- =====================================================
+-- 5. HELPER VIEWS (OPTIONAL)
+-- =====================================================
+
+-- View to get attendance with student details
+CREATE OR REPLACE VIEW attendance_detailed AS
+SELECT 
+    ar.id,
+    ar.session_id,
+    ar.student_id,
+    ar.student_name,
+    ar.roll_number,
+    ar.timestamp,
+    s.faculty_name,
+    s.start_time AS session_start,
+    st.batch
+FROM attendance_records ar
+JOIN sessions s ON ar.session_id = s.id
+JOIN students st ON ar.student_id = st.id;
+
+-- =====================================================
+-- SETUP COMPLETE
+-- =====================================================
+-- Run this entire script in Supabase SQL Editor
+-- All tables, functions, policies, and realtime are now configured
