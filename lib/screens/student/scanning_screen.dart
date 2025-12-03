@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart' hide BluetoothService;
 import 'package:permission_handler/permission_handler.dart';
+import '../../models/session.dart';
 import '../../services/supabase_service.dart';
 import '../../services/bluetooth_service.dart';
 import '../../services/permission_service.dart';
@@ -28,6 +29,21 @@ class ScanningScreen extends StatefulWidget {
   State<ScanningScreen> createState() => _ScanningScreenState();
 }
 
+/// Represents a discovered session with its validity status
+class DiscoveredSession {
+  final AttendanceSession session;
+  final bool isValid; // Matches student's department/batch/year
+  final String? invalidReason;
+  final int rssi; // Signal strength
+
+  DiscoveredSession({
+    required this.session,
+    required this.isValid,
+    this.invalidReason,
+    this.rssi = 0,
+  });
+}
+
 class _ScanningScreenState extends State<ScanningScreen>
     with SingleTickerProviderStateMixin {
   final _supabaseService = SupabaseService();
@@ -41,6 +57,10 @@ class _ScanningScreenState extends State<ScanningScreen>
   List<ScanResult> _foundDevices = [];
   StreamSubscription<List<ScanResult>>? _scanSubscription;
   late AnimationController _animationController;
+
+  // Track discovered sessions
+  final Map<String, DiscoveredSession> _discoveredSessions = {};
+  final Set<String> _processingTokens = {}; // Tokens currently being fetched
 
   @override
   void initState() {
@@ -64,6 +84,8 @@ class _ScanningScreenState extends State<ScanningScreen>
 
     setState(() {
       _foundDevices = [];
+      _discoveredSessions.clear();
+      _processingTokens.clear();
       _resultMessage = null;
       _isSuccess = null;
       _status = 'Checking permissions...';
@@ -107,15 +129,18 @@ class _ScanningScreenState extends State<ScanningScreen>
         _checkForSessionBeacon(results);
       });
 
-      // Timeout handling
+      // Timeout handling - only show error if NO sessions found
       Future.delayed(AppConstants.scanTimeout, () {
         if (_isScanning && mounted && !_isProcessing) {
           _stopScanning();
-          setState(() {
-            _status = 'No session found nearby';
-            _resultMessage = _getNoSessionMessage();
-            _isSuccess = false;
-          });
+          // Only show error if no sessions were discovered
+          if (_discoveredSessions.isEmpty) {
+            setState(() {
+              _status = 'No session found nearby';
+              _resultMessage = _getNoSessionMessage();
+              _isSuccess = false;
+            });
+          }
         }
       });
     } catch (e) {
@@ -173,54 +198,104 @@ class _ScanningScreenState extends State<ScanningScreen>
   }
 
   void _checkForSessionBeacon(List<ScanResult> results) {
-    if (_isProcessing) return;
-
-    final sessionToken = _bluetoothService.findSessionBeacon(results);
-    if (sessionToken != null) {
-      _handleFoundSession(sessionToken);
+    // Find ALL BluMark beacons, not just the first one
+    final foundTokens = _findAllSessionBeacons(results);
+    
+    for (final entry in foundTokens.entries) {
+      final token = entry.key;
+      final rssi = entry.value;
+      
+      // Skip if already discovered or currently being processed
+      if (_discoveredSessions.containsKey(token) || _processingTokens.contains(token)) {
+        continue;
+      }
+      
+      // Fetch session details in background
+      _fetchSessionDetails(token, rssi);
     }
   }
 
-  Future<void> _handleFoundSession(String sessionToken) async {
+  /// Find all BluMark session beacons from scan results
+  /// Returns a map of session token -> RSSI
+  Map<String, int> _findAllSessionBeacons(List<ScanResult> results) {
+    final Map<String, int> tokens = {};
+    
+    for (var result in results) {
+      String? token;
+      
+      // Check platform name
+      final platformName = result.device.platformName;
+      if (platformName.startsWith(AppConstants.bleDevicePrefix)) {
+        token = platformName.substring(AppConstants.bleDevicePrefix.length);
+      }
+      
+      // Check advertisement name
+      if (token == null) {
+        final advName = result.advertisementData.advName;
+        if (advName.startsWith(AppConstants.bleDevicePrefix)) {
+          token = advName.substring(AppConstants.bleDevicePrefix.length);
+        }
+      }
+      
+      if (token != null && token.isNotEmpty) {
+        tokens[token] = result.rssi;
+      }
+    }
+    
+    return tokens;
+  }
+
+  /// Fetch session details from database
+  Future<void> _fetchSessionDetails(String token, int rssi) async {
+    _processingTokens.add(token);
+    
+    try {
+      final session = await _supabaseService.getSessionByHexSsid(token);
+      
+      if (session != null && mounted) {
+        // Check if session matches student's department/batch/year
+        final isValid = session.department == widget.department &&
+            session.batch == widget.batch &&
+            session.year == widget.year;
+        
+        String? invalidReason;
+        if (!isValid) {
+          invalidReason = '${session.department} - Batch ${session.batch} (Year ${session.year})';
+        }
+        
+        setState(() {
+          _discoveredSessions[token] = DiscoveredSession(
+            session: session,
+            isValid: isValid,
+            invalidReason: invalidReason,
+            rssi: rssi,
+          );
+        });
+      }
+    } catch (e) {
+      // Ignore errors for individual sessions
+    } finally {
+      _processingTokens.remove(token);
+    }
+  }
+
+  /// Handle user selecting a session to mark attendance
+  Future<void> _selectSession(DiscoveredSession discovered) async {
     if (_isProcessing) return;
 
     setState(() {
       _isProcessing = true;
-      _status = 'Session found! Verifying...';
+      _status = 'Marking attendance...';
     });
 
+    // Stop scanning when user selects
     await _bluetoothService.stopScanning();
     _scanSubscription?.cancel();
     _animationController.stop();
+    setState(() => _isScanning = false);
 
     try {
-      // Get session by hex_ssid
-      final session = await _supabaseService.getSessionByHexSsid(sessionToken);
-
-      if (session == null) {
-        setState(() {
-          _isScanning = false;
-          _isProcessing = false;
-          _status = 'Session not found';
-          _resultMessage = 'The session may have ended or is not active.';
-          _isSuccess = false;
-        });
-        return;
-      }
-
-      // Verify department/batch/year match
-      if (session.department != widget.department ||
-          session.batch != widget.batch ||
-          session.year != widget.year) {
-        setState(() {
-          _isScanning = false;
-          _isProcessing = false;
-          _status = 'Session mismatch';
-          _resultMessage = 'This session is for ${session.department} - Batch ${session.batch} (Year ${session.year}).\nYou are in ${widget.department} - Batch ${widget.batch} (Year ${widget.year}).';
-          _isSuccess = false;
-        });
-        return;
-      }
+      final session = discovered.session;
 
       // Check if already marked
       final alreadyMarked = await _supabaseService.hasMarkedAttendance(
@@ -230,18 +305,15 @@ class _ScanningScreenState extends State<ScanningScreen>
 
       if (alreadyMarked) {
         setState(() {
-          _isScanning = false;
           _isProcessing = false;
           _status = 'Already marked';
           _resultMessage = 'You have already marked your attendance for this session.';
-          _isSuccess = true; // Show as success since they're present
+          _isSuccess = true;
         });
         return;
       }
 
       // Mark attendance
-      setState(() => _status = 'Marking attendance...');
-      
       final attendance = await _supabaseService.markAttendance(
         studentId: widget.studentId,
         sessionId: session.id,
@@ -249,7 +321,6 @@ class _ScanningScreenState extends State<ScanningScreen>
 
       if (attendance != null) {
         setState(() {
-          _isScanning = false;
           _isProcessing = false;
           _status = 'Success!';
           _resultMessage = 'Your attendance has been marked successfully for Hour ${session.hour}!';
@@ -257,7 +328,6 @@ class _ScanningScreenState extends State<ScanningScreen>
         });
       } else {
         setState(() {
-          _isScanning = false;
           _isProcessing = false;
           _status = 'Failed';
           _resultMessage = 'Failed to mark attendance. Please try again.';
@@ -266,7 +336,6 @@ class _ScanningScreenState extends State<ScanningScreen>
       }
     } catch (e) {
       setState(() {
-        _isScanning = false;
         _isProcessing = false;
         _status = 'Error';
         _resultMessage = 'An error occurred: ${e.toString()}';
@@ -281,8 +350,21 @@ class _ScanningScreenState extends State<ScanningScreen>
     _animationController.stop();
     setState(() {
       _isScanning = false;
-      _status = 'Scan stopped';
+      _status = _discoveredSessions.isEmpty ? 'Scan stopped' : 'Select a session';
     });
+  }
+
+  /// Get sorted list of discovered sessions (valid first, then by signal strength)
+  List<DiscoveredSession> get _sortedSessions {
+    final sessions = _discoveredSessions.values.toList();
+    sessions.sort((a, b) {
+      // Valid sessions first
+      if (a.isValid && !b.isValid) return -1;
+      if (!a.isValid && b.isValid) return 1;
+      // Then by signal strength (higher is better)
+      return b.rssi.compareTo(a.rssi);
+    });
+    return sessions;
   }
 
   void _showPermissionDialog() {
@@ -456,20 +538,25 @@ class _ScanningScreenState extends State<ScanningScreen>
                     ],
                   ],
 
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 20),
 
                   // Found Devices Count (while scanning)
-                  if (_isScanning && _foundDevices.isNotEmpty)
+                  if (_foundDevices.isNotEmpty)
                     Text(
-                      '${_foundDevices.length} devices found',
+                      '${_foundDevices.length} BLE devices nearby',
                       style: TextStyle(
                         color: Colors.grey.shade500,
+                        fontSize: 12,
                       ),
                     ),
                 ],
               ),
             ),
           ),
+
+          // Discovered Sessions Panel
+          if (_discoveredSessions.isNotEmpty && _resultMessage == null)
+            _buildSessionsPanel(),
 
           // Bottom Action
           Padding(
@@ -497,7 +584,7 @@ class _ScanningScreenState extends State<ScanningScreen>
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _isScanning ? _stopScanning : _startScanning,
+                    onPressed: _isProcessing ? null : (_isScanning ? _stopScanning : _startScanning),
                     icon: Icon(
                       _isScanning ? Icons.stop : Icons.bluetooth_searching,
                       size: 28,
@@ -524,5 +611,217 @@ class _ScanningScreenState extends State<ScanningScreen>
         ],
       ),
     );
+  }
+
+  /// Build the floating panel showing discovered sessions
+  Widget _buildSessionsPanel() {
+    final sessions = _sortedSessions;
+    final validCount = sessions.where((s) => s.isValid).length;
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.wifi_tethering, color: Colors.blue.shade700),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Sessions Found (${sessions.length})',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                      if (validCount > 0)
+                        Text(
+                          '$validCount matching your class',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (_isScanning)
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation(Colors.blue.shade700),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          
+          // Sessions List
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 200),
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: sessions.length,
+              itemBuilder: (context, index) {
+                final discovered = sessions[index];
+                return _buildSessionTile(discovered);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build a single session tile
+  Widget _buildSessionTile(DiscoveredSession discovered) {
+    final session = discovered.session;
+    final isValid = discovered.isValid;
+    
+    return InkWell(
+      onTap: isValid && !_isProcessing ? () => _selectSession(discovered) : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Colors.grey.shade200),
+          ),
+        ),
+        child: Row(
+          children: [
+            // Status Icon
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isValid ? Colors.green.shade50 : Colors.grey.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isValid ? Icons.check_circle : Icons.block,
+                color: isValid ? Colors.green : Colors.grey,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            
+            // Session Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        '${session.department} - Batch ${session.batch}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isValid ? Colors.black : Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isValid ? Colors.green.shade100 : Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Hour ${session.hour}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: isValid ? Colors.green.shade700 : Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    isValid 
+                        ? 'Year ${session.year} • ${session.facultyName ?? 'Faculty'}'
+                        : discovered.invalidReason ?? 'Not for your class',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isValid ? Colors.grey.shade600 : Colors.orange.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Signal Strength & Action
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Signal strength indicator
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _getSignalIcon(discovered.rssi),
+                      size: 14,
+                      color: Colors.grey.shade500,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${discovered.rssi} dBm',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ],
+                ),
+                if (isValid) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Tap to mark',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.blue.shade700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Get signal strength icon based on RSSI
+  IconData _getSignalIcon(int rssi) {
+    if (rssi > -50) return Icons.signal_cellular_4_bar;
+    if (rssi > -60) return Icons.signal_cellular_alt;
+    if (rssi > -70) return Icons.signal_cellular_alt_2_bar;
+    return Icons.signal_cellular_alt_1_bar;
   }
 }
