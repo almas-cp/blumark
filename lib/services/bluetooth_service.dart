@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:ble_peripheral/ble_peripheral.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../utils/constants.dart';
 import '../utils/device_id_encoder.dart';
 
@@ -99,16 +101,93 @@ class BluetoothService {
     return state == BluetoothAdapterState.on;
   }
 
+  /// Check if Location Services (GPS) is enabled - REQUIRED for BLE scanning on Android
+  Future<bool> isLocationServiceEnabled() async {
+    if (Platform.isAndroid) {
+      return await Permission.location.serviceStatus.isEnabled;
+    }
+    return true; // iOS doesn't require this check
+  }
+
+  /// Turn on Bluetooth adapter
+  Future<void> turnOnBluetooth() async {
+    if (Platform.isAndroid) {
+      await FlutterBluePlus.turnOn();
+    }
+  }
+
   /// Listen to Bluetooth adapter state
   Stream<BluetoothAdapterState> get adapterStateStream =>
       FlutterBluePlus.adapterState;
 
-  /// Start scanning for BLE devices
+  /// Pre-scan checks - returns error message if checks fail, null if OK
+  Future<String?> preScanChecks() async {
+    // Check Bluetooth is ON
+    final btOn = await isBluetoothOn();
+    if (!btOn) {
+      return 'Please turn on Bluetooth';
+    }
+
+    // Check Location Services (GPS) - CRITICAL for OnePlus, Nothing, Xiaomi, etc.
+    if (Platform.isAndroid) {
+      final locationEnabled = await isLocationServiceEnabled();
+      if (!locationEnabled) {
+        return 'Please enable Location Services (GPS) for Bluetooth scanning';
+      }
+    }
+
+    // Check permissions
+    final btScan = await Permission.bluetoothScan.status;
+    final btConnect = await Permission.bluetoothConnect.status;
+    final location = await Permission.location.status;
+
+    if (!btScan.isGranted || !btConnect.isGranted) {
+      return 'Bluetooth permissions are required';
+    }
+
+    if (Platform.isAndroid && !location.isGranted) {
+      return 'Location permission is required for Bluetooth scanning';
+    }
+
+    return null; // All checks passed
+  }
+
+  /// Start scanning for BLE devices with optimized settings for all devices
   /// Returns a stream of scan results
   Stream<List<ScanResult>> startScanning({
     Duration timeout = const Duration(seconds: 30),
   }) {
-    FlutterBluePlus.startScan(timeout: timeout);
+    // Use specific settings for better compatibility with OnePlus, Nothing, etc.
+    FlutterBluePlus.startScan(
+      timeout: timeout,
+      // Scan in low latency mode for faster discovery
+      androidScanMode: AndroidScanMode.lowLatency,
+      // Allow duplicates to get continuous RSSI updates
+      continuousUpdates: true,
+      // Don't filter by services - scan all devices
+      withServices: [],
+      // Remove any name filters
+      withNames: [],
+    );
+    return FlutterBluePlus.scanResults;
+  }
+
+  /// Start aggressive scanning for problematic devices (OnePlus, Nothing, Xiaomi)
+  Future<Stream<List<ScanResult>>> startAggressiveScanning({
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    // Stop any existing scan first
+    await FlutterBluePlus.stopScan();
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // Use balanced mode with longer scan window
+    FlutterBluePlus.startScan(
+      timeout: timeout,
+      androidScanMode: AndroidScanMode.balanced,
+      continuousUpdates: true,
+      continuousDivisor: 1, // Report every result
+    );
+    
     return FlutterBluePlus.scanResults;
   }
 

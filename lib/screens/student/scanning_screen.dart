@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart' hide BluetoothService;
+import 'package:permission_handler/permission_handler.dart';
 import '../../services/supabase_service.dart';
 import '../../services/bluetooth_service.dart';
 import '../../services/permission_service.dart';
@@ -75,10 +77,15 @@ class _ScanningScreenState extends State<ScanningScreen>
       return;
     }
 
-    // Check Bluetooth state
-    final isBluetoothOn = await _bluetoothService.isBluetoothOn();
-    if (!isBluetoothOn) {
-      setState(() => _status = 'Please turn on Bluetooth');
+    // Run pre-scan checks (Bluetooth, Location Services, etc.)
+    final checkError = await _bluetoothService.preScanChecks();
+    if (checkError != null) {
+      setState(() => _status = checkError);
+      
+      // Show specific dialog for Location Services
+      if (checkError.contains('Location Services')) {
+        _showLocationServicesDialog();
+      }
       return;
     }
 
@@ -90,10 +97,12 @@ class _ScanningScreenState extends State<ScanningScreen>
     _animationController.repeat();
 
     try {
-      // Start scanning
-      _scanSubscription = _bluetoothService.startScanning(
+      // Use aggressive scanning for better compatibility with OnePlus, Nothing, etc.
+      final scanStream = await _bluetoothService.startAggressiveScanning(
         timeout: AppConstants.scanTimeout,
-      ).listen((results) {
+      );
+      
+      _scanSubscription = scanStream.listen((results) {
         setState(() => _foundDevices = results);
         _checkForSessionBeacon(results);
       });
@@ -104,7 +113,7 @@ class _ScanningScreenState extends State<ScanningScreen>
           _stopScanning();
           setState(() {
             _status = 'No session found nearby';
-            _resultMessage = 'Could not find any active session.\nMake sure you are near the faculty\'s device.';
+            _resultMessage = _getNoSessionMessage();
             _isSuccess = false;
           });
         }
@@ -116,6 +125,51 @@ class _ScanningScreenState extends State<ScanningScreen>
       });
       _animationController.stop();
     }
+  }
+
+  String _getNoSessionMessage() {
+    return 'Could not find any active session.\n\n'
+        'Please make sure:\n'
+        '• You are near the faculty\'s device\n'
+        '• Faculty has started the session\n'
+        '• Bluetooth is ON\n'
+        '• Location/GPS is ON';
+  }
+
+  void _showLocationServicesDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.location_off, color: Colors.orange.shade700),
+            const SizedBox(width: 8),
+            const Text('Location Required'),
+          ],
+        ),
+        content: const Text(
+          'Bluetooth scanning on Android requires Location Services (GPS) to be enabled.\n\n'
+          'This is an Android system requirement for Bluetooth Low Energy scanning.\n\n'
+          'Please enable Location/GPS in your device settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              // Open location settings
+              if (Platform.isAndroid) {
+                await openAppSettings();
+              }
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _checkForSessionBeacon(List<ScanResult> results) {
