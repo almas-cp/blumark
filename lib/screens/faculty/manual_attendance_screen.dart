@@ -572,129 +572,146 @@ class _ManualAttendanceScreenState extends State<ManualAttendanceScreen> {
     );
   }
 
-  /// Session selection screen
+  /// Session selection screen - matches BLE session creation UI
   Widget _buildSessionSelector() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Mode indicator
-          Card(
-            child: ListTile(
-              leading: Icon(
-                _attendanceMode == 'swipe' ? Icons.swipe : Icons.checklist,
-                color: Colors.blue,
-              ),
-              title: Text(
-                _attendanceMode == 'swipe' ? 'Swipe Cards Mode' : 'Checkbox List Mode',
-              ),
-              subtitle: const Text('Tap settings icon to change'),
-              trailing: IconButton(
-                icon: const Icon(Icons.settings),
-                onPressed: _showModeSelector,
-              ),
+          // Header Info
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.edit_note, color: Colors.orange.shade700),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Manual attendance mode. Select the class details below to load the student list.',
+                    style: TextStyle(color: Colors.orange.shade900),
+                  ),
+                ),
+              ],
             ),
           ),
+
           const SizedBox(height: 24),
 
-          // Class selection
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Select Class',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 20),
+          // Mode Selection
+          _buildSectionTitle('Attendance Mode'),
+          _buildModeSelector(),
 
-                  // Department
-                  DropdownButtonFormField<String>(
-                    value: _selectedDepartment,
-                    decoration: const InputDecoration(
-                      labelText: 'Department',
-                      prefixIcon: Icon(Icons.business),
-                      border: OutlineInputBorder(),
-                    ),
-                    items: AppConstants.departments
-                        .map((d) => DropdownMenuItem(value: d, child: Text(d)))
-                        .toList(),
-                    onChanged: (v) => setState(() => _selectedDepartment = v!),
-                  ),
-                  const SizedBox(height: 16),
+          const SizedBox(height: 24),
 
-                  // Batch & Year row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _selectedBatch,
-                          decoration: const InputDecoration(
-                            labelText: 'Batch',
-                            prefixIcon: Icon(Icons.group),
-                            border: OutlineInputBorder(),
-                          ),
-                          items: AppConstants.batches
-                              .map((b) => DropdownMenuItem(value: b, child: Text(b)))
-                              .toList(),
-                          onChanged: (v) => setState(() => _selectedBatch = v!),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: DropdownButtonFormField<int>(
-                          value: _selectedYear,
-                          decoration: const InputDecoration(
-                            labelText: 'Year',
-                            prefixIcon: Icon(Icons.calendar_today),
-                            border: OutlineInputBorder(),
-                          ),
-                          items: AppConstants.years
-                              .map((y) => DropdownMenuItem(value: y, child: Text('Year $y')))
-                              .toList(),
-                          onChanged: (v) => setState(() => _selectedYear = v!),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+          // Department Selection
+          _buildSectionTitle('Department'),
+          _buildOptionSelector(
+            options: AppConstants.departments,
+            selected: _selectedDepartment,
+            onSelect: (value) => setState(() => _selectedDepartment = value),
+            color: Colors.purple,
+          ),
 
-                  // Hour
-                  DropdownButtonFormField<int>(
-                    value: _selectedHour,
-                    decoration: const InputDecoration(
-                      labelText: 'Hour',
-                      prefixIcon: Icon(Icons.access_time),
-                      border: OutlineInputBorder(),
-                    ),
-                    items: AppConstants.hours
-                        .map((h) => DropdownMenuItem(value: h, child: Text('Hour $h')))
-                        .toList(),
-                    onChanged: (v) => setState(() => _selectedHour = v!),
+          const SizedBox(height: 24),
+
+          // Batch Selection
+          _buildSectionTitle('Batch'),
+          _buildOptionSelector(
+            options: AppConstants.batches,
+            selected: _selectedBatch,
+            onSelect: (value) => setState(() => _selectedBatch = value),
+            color: Colors.teal,
+          ),
+
+          const SizedBox(height: 24),
+
+          // Year Selection
+          _buildSectionTitle('Year'),
+          _buildOptionSelector(
+            options: AppConstants.years.map((y) => y.toString()).toList(),
+            selected: _selectedYear.toString(),
+            onSelect: (value) => setState(() => _selectedYear = int.parse(value)),
+            color: Colors.indigo,
+          ),
+
+          const SizedBox(height: 24),
+
+          // Hour/Period Selection
+          _buildSectionTitle('Hour / Period'),
+          _buildOptionSelector(
+            options: AppConstants.hours.map((h) => h.toString()).toList(),
+            selected: _selectedHour.toString(),
+            onSelect: (value) => setState(() => _selectedHour = int.parse(value)),
+            color: Colors.pink,
+          ),
+
+          const SizedBox(height: 32),
+
+          // Summary Card
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Session Summary',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 16),
+                _buildSummaryRow('Faculty', _facultyName),
+                _buildSummaryRow('Department', _selectedDepartment),
+                _buildSummaryRow('Batch', _selectedBatch),
+                _buildSummaryRow('Year', _selectedYear.toString()),
+                _buildSummaryRow('Hour', _selectedHour.toString()),
+                _buildSummaryRow('Mode', _attendanceMode == 'swipe' ? 'Swipe Cards' : 'Checkbox List'),
+              ],
             ),
           ),
+
           const SizedBox(height: 24),
 
           // Start button
           ElevatedButton.icon(
-            onPressed: _startSession,
-            icon: const Icon(Icons.play_arrow, size: 28),
-            label: const Text('Start Attendance', style: TextStyle(fontSize: 18)),
+            onPressed: _isLoading ? null : _startSession,
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.play_arrow, size: 28),
+            label: Text(
+              _isLoading ? 'Loading...' : 'Start Attendance',
+              style: const TextStyle(fontSize: 18),
+            ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
+              backgroundColor: Colors.orange.shade600,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: const EdgeInsets.symmetric(vertical: 18),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
           ),
+
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -1059,6 +1076,177 @@ class _ManualAttendanceScreenState extends State<ManualAttendanceScreen> {
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==================== UI HELPER WIDGETS ====================
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: Colors.grey.shade700,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModeSelector() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() => _attendanceMode = 'swipe');
+                _savePreferences();
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: _attendanceMode == 'swipe' ? Colors.orange.shade100 : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.swipe,
+                      size: 20,
+                      color: _attendanceMode == 'swipe' ? Colors.orange.shade700 : Colors.grey.shade600,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Swipe Cards',
+                      style: TextStyle(
+                        fontWeight: _attendanceMode == 'swipe' ? FontWeight.bold : FontWeight.normal,
+                        color: _attendanceMode == 'swipe' ? Colors.orange.shade700 : Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() => _attendanceMode = 'tick');
+                _savePreferences();
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: _attendanceMode == 'tick' ? Colors.orange.shade100 : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.checklist,
+                      size: 20,
+                      color: _attendanceMode == 'tick' ? Colors.orange.shade700 : Colors.grey.shade600,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Checkbox List',
+                      style: TextStyle(
+                        fontWeight: _attendanceMode == 'tick' ? FontWeight.bold : FontWeight.normal,
+                        color: _attendanceMode == 'tick' ? Colors.orange.shade700 : Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOptionSelector({
+    required List<String> options,
+    required String selected,
+    required Function(String) onSelect,
+    required MaterialColor color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Row(
+        children: options.map((option) {
+          final isSelected = option == selected;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => onSelect(option),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: isSelected ? color.shade100 : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  option,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? color.shade700 : Colors.grey.shade600,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildSummaryRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
         ],
       ),
