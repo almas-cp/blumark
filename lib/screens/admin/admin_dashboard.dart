@@ -25,6 +25,7 @@ class _AdminDashboardState extends State<AdminDashboard>
   final _studentNameController = TextEditingController();
   final _studentEmailController = TextEditingController();
   final _studentPasswordController = TextEditingController();
+  final _studentRollNumberController = TextEditingController();
   String _selectedDepartment = AppConstants.departments.first;
   String _selectedBatch = AppConstants.batches.first;
   int _selectedYear = AppConstants.years.first;
@@ -49,6 +50,7 @@ class _AdminDashboardState extends State<AdminDashboard>
     _studentNameController.dispose();
     _studentEmailController.dispose();
     _studentPasswordController.dispose();
+    _studentRollNumberController.dispose();
     super.dispose();
   }
 
@@ -98,8 +100,15 @@ class _AdminDashboardState extends State<AdminDashboard>
   Future<void> _addStudent() async {
     if (_studentNameController.text.isEmpty ||
         _studentEmailController.text.isEmpty ||
-        _studentPasswordController.text.isEmpty) {
+        _studentPasswordController.text.isEmpty ||
+        _studentRollNumberController.text.isEmpty) {
       _showError('Please fill all fields');
+      return;
+    }
+
+    final rollNumber = int.tryParse(_studentRollNumberController.text.trim());
+    if (rollNumber == null) {
+      _showError('Roll number must be a valid number');
       return;
     }
 
@@ -112,10 +121,12 @@ class _AdminDashboardState extends State<AdminDashboard>
         department: _selectedDepartment,
         batch: _selectedBatch,
         year: _selectedYear,
+        rollNumber: rollNumber,
       );
       _studentNameController.clear();
       _studentEmailController.clear();
       _studentPasswordController.clear();
+      _studentRollNumberController.clear();
       _showSuccess('Student added successfully');
       _loadData();
     } catch (e) {
@@ -373,6 +384,15 @@ class _AdminDashboardState extends State<AdminDashboard>
                     ),
                   ),
                   const SizedBox(height: 12),
+                  TextField(
+                    controller: _studentRollNumberController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Roll Number',
+                      prefixIcon: Icon(Icons.numbers),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
@@ -445,7 +465,7 @@ class _AdminDashboardState extends State<AdminDashboard>
                           : 'S',
                     ),
                   ),
-                  title: Text(s['name'] ?? ''),
+                  title: Text('${s['name'] ?? ''} (Roll: ${s['roll_number'] ?? 'N/A'})'),
                   subtitle: Text(
                     '${s['email']}\n${s['department']} - Batch ${s['batch']} | Year ${s['year']}',
                   ),

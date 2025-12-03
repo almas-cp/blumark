@@ -5,6 +5,7 @@ class Student {
   final String department;
   final String batch;
   final int year;
+  final int? rollNumber;
   final String userType;
   final DateTime createdAt;
 
@@ -15,6 +16,7 @@ class Student {
     required this.department,
     required this.batch,
     required this.year,
+    this.rollNumber,
     this.userType = 'student',
     required this.createdAt,
   });
@@ -27,6 +29,7 @@ class Student {
       department: json['department'] as String,
       batch: json['batch'] as String,
       year: json['year'] as int,
+      rollNumber: json['roll_number'] as int?,
       userType: json['user_type'] as String? ?? 'student',
       createdAt: DateTime.parse(json['created_at'] as String),
     );
@@ -40,6 +43,7 @@ class Student {
       'department': department,
       'batch': batch,
       'year': year,
+      'roll_number': rollNumber,
       'user_type': userType,
       'created_at': createdAt.toIso8601String(),
     };

@@ -102,6 +102,7 @@ class SupabaseService {
     required String department,
     required String batch,
     required int year,
+    required int rollNumber,
   }) async {
     await _client.from('student').insert({
       'name': name,
@@ -110,6 +111,7 @@ class SupabaseService {
       'department': department,
       'batch': batch,
       'year': year,
+      'roll_number': rollNumber,
     });
   }
 
