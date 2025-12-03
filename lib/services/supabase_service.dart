@@ -125,6 +125,22 @@ class SupabaseService {
     await _client.from('student').delete().eq('id', id);
   }
 
+  /// Get students by class (department, batch, year)
+  Future<List<Map<String, dynamic>>> getStudentsByClass({
+    required String department,
+    required String batch,
+    required int year,
+  }) async {
+    final response = await _client
+        .from('student')
+        .select()
+        .eq('department', department)
+        .eq('batch', batch)
+        .eq('year', year)
+        .order('roll_number');
+    return List<Map<String, dynamic>>.from(response);
+  }
+
   // ==================== SESSION OPERATIONS ====================
 
   /// Create a new attendance session

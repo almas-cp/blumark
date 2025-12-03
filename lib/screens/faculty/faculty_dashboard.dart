@@ -6,6 +6,7 @@ import '../../models/attendance.dart';
 import '../../utils/constants.dart';
 import '../login_screen.dart';
 import 'session_creation_screen.dart';
+import 'manual_attendance_screen.dart';
 
 class FacultyDashboard extends StatefulWidget {
   const FacultyDashboard({super.key});
@@ -92,6 +93,17 @@ class _FacultyDashboardState extends State<FacultyDashboard> {
         builder: (_) => SessionCreationScreen(
           facultyId: _facultyId,
           facultyName: _facultyName,
+        ),
+      ),
+    ).then((_) => _loadRecentSessions());
+  }
+
+  void _openManualAttendance() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ManualAttendanceScreen(
+          facultyId: _facultyId,
         ),
       ),
     ).then((_) => _loadRecentSessions());
@@ -242,22 +254,50 @@ class _FacultyDashboardState extends State<FacultyDashboard> {
                     // Create Session Button
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: ElevatedButton.icon(
-                        onPressed: _createNewSession,
-                        icon: const Icon(Icons.add_circle_outline, size: 28),
-                        label: const Text(
-                          'Create New Session',
-                          style: TextStyle(fontSize: 18),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade600,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 20),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                      child: Row(
+                        children: [
+                          // BLE Session Button
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _createNewSession,
+                              icon: const Icon(Icons.bluetooth, size: 24),
+                              label: const Text(
+                                'BLE Session',
+                                style: TextStyle(fontSize: 16),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green.shade600,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 18),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 4,
+                              ),
+                            ),
                           ),
-                          elevation: 4,
-                        ),
+                          const SizedBox(width: 12),
+                          // Manual Attendance Button
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _openManualAttendance,
+                              icon: const Icon(Icons.edit_note, size: 24),
+                              label: const Text(
+                                'Manual',
+                                style: TextStyle(fontSize: 16),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange.shade600,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 18),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 4,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
 
