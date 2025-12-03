@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/constants.dart';
@@ -28,7 +29,10 @@ class _ManualAttendanceScreenState extends State<ManualAttendanceScreen> {
   // State
   bool _isLoading = false;
   bool _isSessionStarted = false;
+  bool _isCompleted = false;
   List<Map<String, dynamic>> _students = [];
+  String _facultyName = '';
+  DateTime _submittedAt = DateTime.now();
   
   // Attendance tracking: studentId -> present (true/false)
   final Map<String, bool> _attendance = {};
@@ -47,6 +51,7 @@ class _ManualAttendanceScreenState extends State<ManualAttendanceScreen> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _attendanceMode = prefs.getString('manual_attendance_mode') ?? 'swipe';
+      _facultyName = prefs.getString(AppConstants.prefUserName) ?? 'Faculty';
     });
   }
 
@@ -146,8 +151,7 @@ class _ManualAttendanceScreenState extends State<ManualAttendanceScreen> {
         year: _selectedYear,
       );
 
-      // Mark attendance for each student
-      int presentCount = 0;
+      // Mark attendance for each present student
       for (var student in _students) {
         final isPresent = _attendance[student['id']] ?? false;
         if (isPresent) {
@@ -155,7 +159,6 @@ class _ManualAttendanceScreenState extends State<ManualAttendanceScreen> {
             studentId: student['id'],
             sessionId: session.id,
           );
-          presentCount++;
         }
       }
 
@@ -164,10 +167,11 @@ class _ManualAttendanceScreenState extends State<ManualAttendanceScreen> {
 
       if (!mounted) return;
 
-      _showSuccess('Attendance saved! $presentCount/${_students.length} present');
-      
-      // Go back to dashboard
-      Navigator.pop(context);
+      // Show completion screen with copy options
+      setState(() {
+        _isCompleted = true;
+        _submittedAt = DateTime.now();
+      });
     } catch (e) {
       _showError('Failed to save attendance: $e');
     } finally {
@@ -198,12 +202,6 @@ class _ManualAttendanceScreenState extends State<ManualAttendanceScreen> {
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
-  }
-
-  void _showSuccess(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.green),
     );
   }
 
@@ -274,9 +272,303 @@ class _ManualAttendanceScreenState extends State<ManualAttendanceScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _isSessionStarted
-              ? _buildAttendanceView()
-              : _buildSessionSelector(),
+          : _isCompleted
+              ? _buildCompletionScreen()
+              : _isSessionStarted
+                  ? _buildAttendanceView()
+                  : _buildSessionSelector(),
+    );
+  }
+
+  // ==================== COPY METHODS ====================
+
+  String _formatDateTime(DateTime dt) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final amPm = dt.hour >= 12 ? 'PM' : 'AM';
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}, $hour:${dt.minute.toString().padLeft(2, '0')} $amPm';
+  }
+
+  String _buildAttendanceMessage({required String filter}) {
+    final buffer = StringBuffer();
+    
+    // Header
+    buffer.writeln('📋 *ATTENDANCE REPORT*');
+    buffer.writeln('━━━━━━━━━━━━━━━━━━━━━');
+    buffer.writeln('');
+    buffer.writeln('👨‍🏫 *Faculty:* $_facultyName');
+    buffer.writeln('📅 *Date:* ${_formatDateTime(_submittedAt)}');
+    buffer.writeln('🏫 *Class:* $_selectedDepartment - Batch $_selectedBatch');
+    buffer.writeln('📚 *Year:* $_selectedYear | *Hour:* $_selectedHour');
+    buffer.writeln('');
+    
+    // Get filtered students
+    List<Map<String, dynamic>> filteredStudents;
+    String title;
+    
+    if (filter == 'present') {
+      filteredStudents = _students.where((s) => _attendance[s['id']] == true).toList();
+      title = '✅ PRESENT STUDENTS';
+    } else if (filter == 'absent') {
+      filteredStudents = _students.where((s) => _attendance[s['id']] != true).toList();
+      title = '❌ ABSENT STUDENTS';
+    } else {
+      filteredStudents = _students;
+      title = '📝 ALL STUDENTS';
+    }
+    
+    // Count
+    final presentCount = _attendance.values.where((v) => v).length;
+    final absentCount = _students.length - presentCount;
+    buffer.writeln('📊 *Summary:* $presentCount Present | $absentCount Absent');
+    buffer.writeln('');
+    buffer.writeln('*$title (${filteredStudents.length})*');
+    buffer.writeln('━━━━━━━━━━━━━━━━━━━━━');
+    
+    // Student list
+    for (var student in filteredStudents) {
+      final isPresent = _attendance[student['id']] == true;
+      final status = isPresent ? '✅' : '❌';
+      final roll = student['roll_number'] ?? '?';
+      final name = student['name'] ?? 'Unknown';
+      buffer.writeln('$status  $roll. $name');
+    }
+    
+    buffer.writeln('');
+    buffer.writeln('━━━━━━━━━━━━━━━━━━━━━');
+    buffer.writeln('_Generated by BluMark_');
+    
+    return buffer.toString();
+  }
+
+  void _copyToClipboard(String filter) {
+    final message = _buildAttendanceMessage(filter: filter);
+    Clipboard.setData(ClipboardData(text: message));
+    
+    String label;
+    if (filter == 'present') {
+      label = 'Present students';
+    } else if (filter == 'absent') {
+      label = 'Absent students';
+    } else {
+      label = 'Full attendance';
+    }
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$label copied to clipboard!'),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  /// Completion screen with copy options
+  Widget _buildCompletionScreen() {
+    final presentCount = _attendance.values.where((v) => v).length;
+    final absentCount = _students.length - presentCount;
+    
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          
+          // Success icon
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.check_circle,
+              size: 80,
+              color: Colors.green.shade600,
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          const Text(
+            'Attendance Saved!',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _formatDateTime(_submittedAt),
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 24),
+          
+          // Summary card
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Text(
+                    '$_selectedDepartment - Batch $_selectedBatch',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text('Year $_selectedYear • Hour $_selectedHour'),
+                  const Divider(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildStatItem('Present', presentCount, Colors.green),
+                      Container(width: 1, height: 40, color: Colors.grey.shade300),
+                      _buildStatItem('Absent', absentCount, Colors.red),
+                      Container(width: 1, height: 40, color: Colors.grey.shade300),
+                      _buildStatItem('Total', _students.length, Colors.blue),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          // Copy options
+          const Text(
+            'Copy Attendance Report',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          
+          // Full class button
+          _buildCopyButton(
+            icon: Icons.groups,
+            label: 'Full Class Report',
+            subtitle: 'All ${_students.length} students',
+            color: Colors.blue,
+            onTap: () => _copyToClipboard('all'),
+          ),
+          const SizedBox(height: 12),
+          
+          // Present only button
+          _buildCopyButton(
+            icon: Icons.check_circle,
+            label: 'Present Students Only',
+            subtitle: '$presentCount students',
+            color: Colors.green,
+            onTap: () => _copyToClipboard('present'),
+          ),
+          const SizedBox(height: 12),
+          
+          // Absent only button
+          _buildCopyButton(
+            icon: Icons.cancel,
+            label: 'Absent Students Only',
+            subtitle: '$absentCount students',
+            color: Colors.red,
+            onTap: () => _copyToClipboard('absent'),
+          ),
+          const SizedBox(height: 32),
+          
+          // Done button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.done),
+              label: const Text('Done'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, int count, Color color) {
+    return Column(
+      children: [
+        Text(
+          '$count',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCopyButton({
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 28),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.copy, color: Colors.grey.shade400),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
