@@ -493,13 +493,11 @@ class _ManualAttendanceScreenState extends State<ManualAttendanceScreen> {
 
     final student = _students[_currentCardIndex];
 
-    return Stack(
+    return Column(
       children: [
         // Progress indicator
-        Positioned(
-          top: 20,
-          left: 20,
-          right: 20,
+        Padding(
+          padding: const EdgeInsets.all(20),
           child: Column(
             children: [
               LinearProgressIndicator(
@@ -516,63 +514,50 @@ class _ManualAttendanceScreenState extends State<ManualAttendanceScreen> {
           ),
         ),
 
-        // Card
-        Center(
-          child: Dismissible(
-            key: Key(student['id']),
-            onDismissed: (direction) {
-              final isPresent = direction == DismissDirection.startToEnd;
-              _markAttendance(student['id'], isPresent);
-            },
-            background: Container(
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.only(left: 40),
-              color: Colors.green.shade400,
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.check, color: Colors.white, size: 48),
-                  Text('PRESENT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ],
-              ),
+        // Card with AnimatedSwitcher for smooth transitions
+        Expanded(
+          child: Center(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: _buildStudentCard(student),
             ),
-            secondaryBackground: Container(
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 40),
-              color: Colors.red.shade400,
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.close, color: Colors.white, size: 48),
-                  Text('ABSENT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-            child: _buildStudentCard(student),
           ),
         ),
 
-        // Swipe hints
-        Positioned(
-          bottom: 100,
-          left: 20,
-          right: 20,
+        // Action buttons - Present / Absent
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              Row(
-                children: [
-                  Icon(Icons.arrow_back, color: Colors.red.shade300),
-                  const SizedBox(width: 4),
-                  Text('Absent', style: TextStyle(color: Colors.red.shade300)),
-                ],
+              // Absent button
+              GestureDetector(
+                onTap: () => _markAttendance(student['id'], false),
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.red.shade400, width: 3),
+                  ),
+                  child: Icon(Icons.close, color: Colors.red.shade600, size: 40),
+                ),
               ),
-              Row(
-                children: [
-                  Text('Present', style: TextStyle(color: Colors.green.shade400)),
-                  const SizedBox(width: 4),
-                  Icon(Icons.arrow_forward, color: Colors.green.shade400),
-                ],
+              
+              // Present button
+              GestureDetector(
+                onTap: () => _markAttendance(student['id'], true),
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.green.shade400, width: 3),
+                  ),
+                  child: Icon(Icons.check, color: Colors.green.shade600, size: 40),
+                ),
               ),
             ],
           ),
@@ -583,41 +568,42 @@ class _ManualAttendanceScreenState extends State<ManualAttendanceScreen> {
 
   Widget _buildStudentCard(Map<String, dynamic> student) {
     return Container(
-      width: 300,
-      height: 400,
+      key: ValueKey(student['id']),
+      width: 280,
+      padding: const EdgeInsets.all(24),
       margin: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Avatar
+          // Roll number circle
           CircleAvatar(
-            radius: 60,
+            radius: 50,
             backgroundColor: Colors.blue.shade100,
             child: Text(
               '${student['roll_number'] ?? '?'}',
               style: TextStyle(
-                fontSize: 48,
+                fontSize: 36,
                 fontWeight: FontWeight.bold,
                 color: Colors.blue.shade700,
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
           // Roll number badge
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
               color: Colors.blue.shade50,
               borderRadius: BorderRadius.circular(20),
@@ -625,7 +611,7 @@ class _ManualAttendanceScreenState extends State<ManualAttendanceScreen> {
             child: Text(
               'Roll No. ${student['roll_number'] ?? 'N/A'}',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.bold,
                 color: Colors.blue.shade700,
               ),
