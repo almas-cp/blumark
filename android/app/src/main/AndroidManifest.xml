@@ -15,7 +15,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     
     <application
-        android:label="blumark"
+        android:label="Blumark"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
