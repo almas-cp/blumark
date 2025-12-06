@@ -32,6 +32,8 @@ class _LiveAttendanceScreenState extends State<LiveAttendanceScreen> {
   String? _sessionToken;
   String? _errorMessage;
   List<Attendance> _attendanceList = [];
+  List<Map<String, dynamic>> _allStudents = [];
+  Set<String> _markedStudentIds = {};
   StreamSubscription? _realtimeSubscription;
   Timer? _refreshTimer;
 
@@ -39,6 +41,22 @@ class _LiveAttendanceScreenState extends State<LiveAttendanceScreen> {
   void initState() {
     super.initState();
     _initializeBluetooth();
+    _loadAllStudents();
+  }
+
+  Future<void> _loadAllStudents() async {
+    try {
+      final students = await _supabaseService.getStudentsByClass(
+        department: widget.session.department,
+        batch: widget.session.batch,
+        year: widget.session.year,
+      );
+      if (mounted) {
+        setState(() => _allStudents = students);
+      }
+    } catch (e) {
+      // Ignore errors
+    }
   }
 
   @override
@@ -147,11 +165,28 @@ class _LiveAttendanceScreenState extends State<LiveAttendanceScreen> {
     try {
       final list = await _supabaseService.getSessionAttendance(widget.session.id);
       if (mounted) {
-        setState(() => _attendanceList = list);
+        setState(() {
+          _attendanceList = list;
+          _markedStudentIds = list.map((a) => a.studentId).toSet();
+        });
       }
     } catch (e) {
       // Ignore errors
     }
+  }
+
+  void _openManualAttendance() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _ManualBleAttendanceScreen(
+          session: widget.session,
+          allStudents: _allStudents,
+          markedStudentIds: _markedStudentIds,
+          onRefresh: _loadAttendance,
+        ),
+      ),
+    );
   }
 
   Future<void> _stopSession() async {
@@ -412,88 +447,32 @@ class _LiveAttendanceScreenState extends State<LiveAttendanceScreen> {
             ),
           ),
 
-          const SizedBox(height: 20),
+          // Manual Attendance Button
+          if (_isAdvertising && _allStudents.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: OutlinedButton.icon(
+                onPressed: _openManualAttendance,
+                icon: const Icon(Icons.person_add),
+                label: Text(
+                  'Manual Attendance (${_allStudents.length - _markedStudentIds.length} remaining)',
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.orange.shade700,
+                  side: BorderSide(color: Colors.orange.shade300),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 8),
 
           // Attendance List
           Expanded(
-            child: _attendanceList.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.people_outline,
-                          size: 64,
-                          color: Colors.grey.shade300,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          _isAdvertising
-                              ? 'Waiting for students...'
-                              : 'Start broadcasting to receive attendance',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: _attendanceList.length,
-                    itemBuilder: (context, index) {
-                      final attendance = _attendanceList[index];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: Colors.green.shade100,
-                              child: Text(
-                                '${index + 1}',
-                                style: TextStyle(
-                                  color: Colors.green.shade700,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    attendance.studentName ?? 'Student',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  if (attendance.studentEmail != null)
-                                    Text(
-                                      attendance.studentEmail!,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                            Icon(
-                              Icons.check_circle,
-                              color: Colors.green.shade600,
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+            child: _buildBleAttendanceList(),
           ),
 
           // Bottom Action Button
@@ -573,6 +552,378 @@ class _LiveAttendanceScreenState extends State<LiveAttendanceScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// BLE attendance list (original view)
+  Widget _buildBleAttendanceList() {
+    if (_attendanceList.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.people_outline,
+              size: 64,
+              color: Colors.grey.shade300,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _isAdvertising
+                  ? 'Waiting for students...'
+                  : 'Start broadcasting to receive attendance',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: _attendanceList.length,
+      itemBuilder: (context, index) {
+        final attendance = _attendanceList[index];
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: Colors.green.shade100,
+                child: Text(
+                  '${index + 1}',
+                  style: TextStyle(
+                    color: Colors.green.shade700,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      attendance.studentName ?? 'Student',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (attendance.studentEmail != null)
+                      Text(
+                        attendance.studentEmail!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.check_circle,
+                color: Colors.green.shade600,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+}
+
+/// Separate screen for manual attendance during BLE session
+class _ManualBleAttendanceScreen extends StatefulWidget {
+  final AttendanceSession session;
+  final List<Map<String, dynamic>> allStudents;
+  final Set<String> markedStudentIds;
+  final VoidCallback onRefresh;
+
+  const _ManualBleAttendanceScreen({
+    required this.session,
+    required this.allStudents,
+    required this.markedStudentIds,
+    required this.onRefresh,
+  });
+
+  @override
+  State<_ManualBleAttendanceScreen> createState() => _ManualBleAttendanceScreenState();
+}
+
+class _ManualBleAttendanceScreenState extends State<_ManualBleAttendanceScreen> {
+  final _supabaseService = SupabaseService();
+  late Set<String> _markedStudentIds;
+  final Set<String> _selectedStudentIds = {}; // Local selection before save
+  bool _isSaving = false;
+  StreamSubscription? _realtimeSubscription;
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _markedStudentIds = Set.from(widget.markedStudentIds);
+    _subscribeToAttendance();
+  }
+
+  @override
+  void dispose() {
+    _realtimeSubscription?.cancel();
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  void _subscribeToAttendance() {
+    // Load initial
+    _loadAttendance();
+
+    // Subscribe to realtime updates
+    _realtimeSubscription = _supabaseService.subscribeToSessionAttendance(
+      widget.session.id,
+      (attendanceList) {
+        if (mounted) {
+          setState(() {
+            _markedStudentIds = attendanceList.map((a) => a.studentId).toSet();
+          });
+        }
+      },
+    );
+
+    // Periodic refresh as backup
+    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      _loadAttendance();
+    });
+  }
+
+  Future<void> _loadAttendance() async {
+    try {
+      final list = await _supabaseService.getSessionAttendance(widget.session.id);
+      if (mounted) {
+        setState(() {
+          _markedStudentIds = list.map((a) => a.studentId).toSet();
+        });
+      }
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  void _toggleSelection(String studentId) {
+    setState(() {
+      if (_selectedStudentIds.contains(studentId)) {
+        _selectedStudentIds.remove(studentId);
+      } else {
+        _selectedStudentIds.add(studentId);
+      }
+    });
+  }
+
+  Future<void> _saveAttendance() async {
+    if (_selectedStudentIds.isEmpty) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      // Mark all selected students
+      for (final studentId in _selectedStudentIds) {
+        await _supabaseService.markAttendance(
+          studentId: studentId,
+          sessionId: widget.session.id,
+        );
+      }
+
+      // Update local state
+      setState(() {
+        _markedStudentIds.addAll(_selectedStudentIds);
+        _selectedStudentIds.clear();
+      });
+
+      // Refresh parent
+      widget.onRefresh();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Attendance saved'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Get unmarked students in proper order (by roll number)
+    final unmarkedStudents = widget.allStudents
+        .where((s) => !_markedStudentIds.contains(s['id']))
+        .toList()
+      ..sort((a, b) => (a['roll_number'] ?? 0).compareTo(b['roll_number'] ?? 0));
+
+    return Scaffold(
+      backgroundColor: Colors.grey.shade100,
+      appBar: AppBar(
+        title: Text(
+          'Manual (${_markedStudentIds.length}/${widget.allStudents.length})',
+        ),
+        backgroundColor: Colors.orange.shade600,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          // BLE indicator
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.bluetooth, size: 16),
+                SizedBox(width: 4),
+                Text('Live', style: TextStyle(fontSize: 12)),
+              ],
+            ),
+          ),
+        ],
+      ),
+      body: unmarkedStudents.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle, size: 80, color: Colors.green.shade400),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'All students marked!',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${_markedStudentIds.length} students present',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            )
+          : Column(
+              children: [
+                // Student list
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: unmarkedStudents.length,
+                    itemBuilder: (context, index) {
+                      final student = unmarkedStudents[index];
+                      final isSelected = _selectedStudentIds.contains(student['id']);
+                      return _buildStudentTile(student, isSelected);
+                    },
+                  ),
+                ),
+
+                // Save button
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton.icon(
+                    onPressed: _selectedStudentIds.isEmpty || _isSaving
+                        ? null
+                        : _saveAttendance,
+                    icon: _isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.save),
+                    label: Text(
+                      _isSaving
+                          ? 'Saving...'
+                          : 'Save (${_selectedStudentIds.length} selected)',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(50),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildStudentTile(Map<String, dynamic> student, bool isSelected) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      color: isSelected ? Colors.green.shade50 : Colors.white,
+      child: CheckboxListTile(
+        value: isSelected,
+        onChanged: (_) => _toggleSelection(student['id']),
+        activeColor: Colors.green,
+        controlAffinity: ListTileControlAffinity.trailing,
+        secondary: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.green.shade100 : Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            '${student['roll_number'] ?? '?'}',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: isSelected ? Colors.green.shade700 : Colors.grey.shade700,
+            ),
+          ),
+        ),
+        title: Text(
+          student['name'] ?? 'Unknown',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: isSelected ? Colors.green.shade700 : Colors.black87,
+          ),
+        ),
+      ),
     );
   }
 }
