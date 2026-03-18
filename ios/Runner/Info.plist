@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>This app requires camera access to count heads using AR face detection for attendance verification.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app may use the microphone for audio features.</string>
 </dict>
 </plist>

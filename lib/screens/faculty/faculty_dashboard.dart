@@ -7,6 +7,7 @@ import '../../utils/constants.dart';
 import '../login_screen.dart';
 import 'session_creation_screen.dart';
 import 'manual_attendance_screen.dart';
+import 'head_counting_screen.dart';
 
 class FacultyDashboard extends StatefulWidget {
   const FacultyDashboard({super.key});
@@ -107,6 +108,15 @@ class _FacultyDashboardState extends State<FacultyDashboard> {
         ),
       ),
     ).then((_) => _loadRecentSessions());
+  }
+
+  void _openHeadCounting() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const HeadCountingScreen(),
+      ),
+    );
   }
 
   Future<void> _deleteSession(AttendanceSession session) async {
@@ -301,6 +311,88 @@ class _FacultyDashboardState extends State<FacultyDashboard> {
                       ),
                     ),
 
+                    const SizedBox(height: 16),
+
+                    // AR Head Counting Button
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.purple.shade700,
+                              Colors.blue.shade600,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.purple.withAlpha(77),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _openHeadCounting,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withAlpha(51),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.face,
+                                      color: Colors.white,
+                                      size: 32,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          '🔻 AR Head Counter',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Count heads with face detection',
+                                          style: TextStyle(
+                                            color: Colors.white.withAlpha(204),
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.arrow_forward_ios,
+                                    color: Colors.white.withAlpha(179),
+                                    size: 18,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
                     const SizedBox(height: 32),
 
                     // Recent Sessions
@@ -416,7 +508,7 @@ class _SessionCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withAlpha(13),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),

@@ -12,7 +12,8 @@
 - 👤 **Role-Based Access** - Three user types: Admin, Faculty, and Student, each with dedicated dashboards.
 - ☁️ **Cloud Sync** - Real-time data synchronization with Supabase for attendance records, sessions, and user management.
 - 📡 **Multi-Strategy BLE Scanning** - Uses multiple scanning modes (Low Latency, Balanced, Low Power, Opportunistic) to ensure compatibility across various Android devices (OnePlus, Nothing, Xiaomi, Samsung, Pixel, etc.).
-- 📱 **Cross-Platform** - Built with Flutter, supports Android and iOS.
+- � **AR Head Counting** - Use Google ML Kit face detection to count heads in a classroom via camera, with progressive counting that handles 180° camera sweeps without duplicates.
+- �📱 **Cross-Platform** - Built with Flutter, supports Android and iOS.
 
 ---
 
@@ -103,6 +104,8 @@
 | Local Storage           | `shared_preferences`                    |
 | Permissions             | `permission_handler`                    |
 | Unique IDs              | `uuid`                                  |
+| AR Face Detection       | `google_mlkit_face_detection`           |
+| Camera                  | `camera`                                |
 
 ---
 
@@ -202,7 +205,8 @@ lib/
 │   ├── admin/
 │   │   └── admin_dashboard.dart   # Admin management UI
 │   ├── faculty/
-│   │   └── faculty_dashboard.dart # Faculty session management
+│   │   ├── faculty_dashboard.dart   # Faculty session management
+│   │   └── head_counting_screen.dart # AR head counting with face detection
 │   └── student/
 │       └── student_dashboard.dart # Student attendance scanning
 ├── services/
@@ -226,6 +230,8 @@ dependencies:
   shared_preferences: ^2.2.3      # Local storage
   uuid: ^4.5.1                    # Unique ID generation
   permission_handler: ^11.3.1     # Runtime permissions
+  google_mlkit_face_detection: ^0.13.1  # AR face detection
+  camera: ^0.11.3                 # Camera access for head counting
 ```
 
 ---
