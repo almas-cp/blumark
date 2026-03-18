@@ -258,7 +258,7 @@ The student app uses **4 scanning strategies** for maximum device compatibility:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/yourusername/blumark.git
+git clone https://github.com/almas-cp/blumark.git
 cd blumark
 
 # 2. Install dependencies
