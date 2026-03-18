@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="BluMark - Bluetooth-Powered Smart Attendance System">
+    <title>BluMark | Future of Attendance</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* 
+         * DESIGN SYSTEM & VARIABLES
+         */
+        :root {
+            --bg-base: #050505;
+            --bg-surface: rgba(20, 20, 22, 0.6);
+            --bg-surface-hover: rgba(30, 30, 35, 0.8);
+            
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-highlight: rgba(255, 255, 255, 0.15);
+            --border-accent: rgba(56, 189, 248, 0.4);
+            
+            --text-primary: #ededed;
+            --text-secondary: #a0a0a0;
+            --text-muted: #6b6b6b;
+            
+            --accent-main: #38bdf8;
+            --accent-secondary: #818cf8;
+            --accent-glow: rgba(56, 189, 248, 0.25);
+            --accent-glow-strong: rgba(56, 189, 248, 0.5);
+            
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+            --radius-full: 9999px;
+            
+            --ease-spring: cubic-bezier(0.25, 1.5, 0.5, 1);
+            --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+            --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+        }
+
+        /* 
+         * RESET & BASE
+         */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        ::selection {
+            background-color: rgba(56, 189, 248, 0.3);
+            color: #fff;
+        }
+
+        /* 
+         * TYPOGRAPHY
+         */
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+        }
+
+        .text-mono {
+            font-family: var(--font-mono);
+            letter-spacing: -0.01em;
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #fff 0%, #a0a0a0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .gradient-accent {
+            background: linear-gradient(135deg, var(--accent-main) 0%, var(--accent-secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* 
+         * LAYOUT & BACKGROUND
+         */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        #bg-mesh {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: -1;
+            background: 
+                radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.08), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(129, 140, 248, 0.08), transparent 25%);
+            filter: blur(80px);
+            pointer-events: none;
+        }
+
+        .grid {
+            display: grid;
+            gap: 24px;
+        }
+
+        /* 
+         * LOADER
+         */
+        #loader {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-base);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            transition: opacity 0.8s var(--ease-in-out), visibility 0.8s;
+        }
+        
+        #loader.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 2px solid var(--border-subtle);
+            border-top-color: var(--accent-main);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loader-text {
+            margin-top: 24px;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* 
+         * GLASSMORPHISM UI COMPONENTS
+         */
+        .glass-panel {
+            background: var(--bg-surface);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            transition: all 0.4s var(--ease-out);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .glass-panel::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .glass-panel:hover {
+            background: var(--bg-surface-hover);
+            border-color: var(--border-highlight);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 
+                        0 0 0 1px rgba(255,255,255,0.05) inset;
+        }
+        
+        .glass-panel:hover::before {
+            opacity: 1;
+        }
+
+        .glass-nav {
+            position: fixed;
+            top: 24px; left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 48px);
+            max-width: 1000px;
+            background: rgba(10, 10, 10, 0.6);
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-full);
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+            transition: transform 0.6s var(--ease-out);
+        }
+
+        /* 
+         * BUTTONS & INTERACTIVE
+         */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            font-size: 0.9375rem;
+            font-weight: 500;
+            border-radius: var(--radius-full);
+            cursor: pointer;
+            transition: all 0.3s var(--ease-out);
+            text-decoration: none;
+            position: relative;
+            overflow: hidden;
+            font-family: var(--font-sans);
+            outline: none;
+        }
+
+        .btn:focus-visible {
+            box-shadow: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--accent-main);
+        }
+
+        .btn-primary {
+            background: var(--text-primary);
+            color: var(--bg-base);
+            border: none;
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 24px rgba(255, 255, 255, 0.15);
+        }
+
+        .btn-glass {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(12px);
+        }
+
+        .btn-glass:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--border-highlight);
+            transform: scale(1.02);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--accent-main);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* 
+         * SECTIONS
+         */
+        section {
+            padding: 120px 0;
+            position: relative;
+        }
+
+        /* HERO */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding-top: 80px;
+        }
+
+        .hero-title {
+            font-size: clamp(3rem, 6vw, 5rem);
+            margin: 24px 0;
+            line-height: 1;
+        }
+
+        .hero-desc {
+            font-size: clamp(1.125rem, 2vw, 1.25rem);
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto 40px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* FEATURES */
+        .section-header {
+            text-align: center;
+            margin-bottom: 64px;
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+        }
+
+        .section-subtitle {
+            color: var(--text-secondary);
+            font-size: 1.125rem;
+            font-family: var(--font-mono);
+        }
+
+        .features-grid {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
+        .feature-card {
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .feature-icon-wrapper {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-main);
+            border: 1px solid var(--border-subtle);
+            transition: all 0.3s var(--ease-out);
+        }
+
+        .feature-card:hover .feature-icon-wrapper {
+            background: var(--accent-main);
+            color: var(--bg-base);
+            transform: scale(1.1) rotate(-5deg);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .feature-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .feature-desc {
+            color: var(--text-secondary);
+            font-size: 0.9375rem;
+        }
+
+        /* WORKFLOW / TERMINAL */
+        .terminal-window {
+            background: #000;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-subtle);
+            overflow: hidden;
+            box-shadow: 0 24px 48px rgba(0,0,0,0.5);
+        }
+
+        .terminal-header {
+            background: rgba(255,255,255,0.05);
+            padding: 12px 16px;
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .terminal-dot {
+            width: 12px; height: 12px;
+            border-radius: 50%;
+        }
+        .dot-red { background: #ef4444; }
+        .dot-yellow { background: #eab308; }
+        .dot-green { background: #22c55e; }
+
+        .terminal-body {
+            padding: 24px;
+            color: var(--accent-main);
+            font-size: 0.875rem;
+            line-height: 1.7;
+            overflow-x: auto;
+        }
+
+        .term-prompt::before {
+            content: '$ ';
+            color: var(--text-muted);
+        }
+
+        .term-comment { color: var(--text-muted); }
+        .term-output { color: var(--text-secondary); }
+
+        /* TECH STACK */
+        .stack-flex {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: center;
+        }
+
+        .stack-pill {
+            padding: 12px 24px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-full);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            transition: all 0.3s var(--ease-out);
+        }
+
+        .stack-pill:hover {
+            border-color: var(--border-accent);
+            background: rgba(56, 189, 248, 0.05);
+            box-shadow: 0 0 15px var(--accent-glow);
+            transform: translateY(-2px);
+        }
+
+        /* FOOTER */
+        footer {
+            border-top: 1px solid var(--border-subtle);
+            padding: 48px 0;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        /* 
+         * ANIMATIONS & UTILS
+         */
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.8s var(--ease-out), transform 0.8s var(--ease-out);
+            will-change: opacity, transform;
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .delay-100 { transition-delay: 100ms; }
+        .delay-200 { transition-delay: 200ms; }
+        .delay-300 { transition-delay: 300ms; }
+
+        @media (max-width: 768px) {
+            .glass-nav {
+                padding: 12px;
+                width: calc(100% - 24px);
+            }
+            .nav-links { display: none; }
+            .hero-actions { flex-direction: column; }
+            .btn { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Screen -->
+    <div id="loader">
+        <div class="spinner"></div>
+        <div class="loader-text text-mono">Initializing System</div>
+    </div>
+
+    <!-- Background Mesh -->
+    <div id="bg-mesh"></div>
+
+    <!-- Navigation -->
+    <nav class="glass-nav reveal">
+        <div style="font-weight: 700; font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="bluetooth" style="color: var(--accent-main); width: 20px;"></i>
+            BluMark
+        </div>
+        <div class="nav-links" style="display: flex; gap: 24px; font-size: 0.875rem; color: var(--text-secondary);">
+            <a href="#features" style="color: inherit; text-decoration: none; transition: color 0.2s;">Features</a>
+            <a href="#workflow" style="color: inherit; text-decoration: none; transition: color 0.2s;">Workflow</a>
+            <a href="#architecture" style="color: inherit; text-decoration: none; transition: color 0.2s;">Architecture</a>
+        </div>
+        <a href="https://github.com/almas-cp/blumark" class="btn btn-glass" style="padding: 8px 16px; font-size: 0.875rem;">
+            <i data-lucide="github" style="width: 16px;"></i> Repository
+        </a>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero">
+        <div class="container" style="display: flex; flex-direction: column; align-items: center; position: relative;">
+            
+            <div class="badge reveal text-mono">
+                <span style="display: inline-block; width: 6px; height: 6px; background: var(--accent-main); border-radius: 50%; box-shadow: 0 0 8px var(--accent-main);"></span>
+                System v1.0.0 Online
+            </div>
+            
+            <h1 class="hero-title reveal delay-100">
+                Attendance, <br />
+                <span class="gradient-text">Engineered for the Future.</span>
+            </h1>
+            
+            <p class="hero-desc reveal delay-200">
+                Automate classroom roll calls with high-precision BLE beacons, real-time Supabase sync, and ML Kit AR head counting. Zero manual entry. Zero proxies.
+            </p>
+            
+            <div class="hero-actions reveal delay-300">
+                <a href="#workflow" class="btn btn-primary">
+                    Initialize Setup <i data-lucide="arrow-right" style="width: 18px;"></i>
+                </a>
+                <a href="https://github.com/almas-cp/blumark" class="btn btn-glass">
+                    View Architecture
+                </a>
+            </div>
+
+        </div>
+    </header>
+
+    <!-- Features Section -->
+    <section id="features">
+        <div class="container">
+            <div class="section-header reveal">
+                <div class="badge text-mono" style="margin-bottom: 16px;">Capabilities</div>
+                <h2 class="section-title">High-Fidelity Tracking</h2>
+                <p class="section-subtitle">Powered by multi-strategy scanning and edge AI.</p>
+            </div>
+
+            <div class="grid features-grid">
+                <div class="glass-panel feature-card reveal">
+                    <div class="feature-icon-wrapper">
+                        <i data-lucide="radio"></i>
+                    </div>
+                    <h3 class="feature-title">BLE Beacon Protocol</h3>
+                    <p class="feature-desc">Faculty devices broadcast secure, low-latency Bluetooth beacons. Students scan to instantly verify physical presence within the classroom perimeter.</p>
+                </div>
+
+                <div class="glass-panel feature-card reveal delay-100">
+                    <div class="feature-icon-wrapper">
+                        <i data-lucide="database"></i>
+                    </div>
+                    <h3 class="feature-title">Real-Time Sync</h3>
+                    <p class="feature-desc">Instantaneous cloud state synchronization via Supabase Realtime via PostgreSQL. Check-ins are reflected on faculty dashboards with millisecond latency.</p>
+                </div>
+
+                <div class="glass-panel feature-card reveal delay-200">
+                    <div class="feature-icon-wrapper">
+                        <i data-lucide="scan-face"></i>
+                    </div>
+                    <h3 class="feature-title">AR Head Counting</h3>
+                    <p class="feature-desc">Integrates Google ML Kit face detection for secondary verification. Perform a 180° camera sweep to algorithmically cross-reference physical attendance.</p>
+                </div>
+
+                <div class="glass-panel feature-card reveal">
+                    <div class="feature-icon-wrapper">
+                        <i data-lucide="shield-check"></i>
+                    </div>
+                    <h3 class="feature-title">Role-Based Access Control</h3>
+                    <p class="feature-desc">Isolated operational contexts for Admins, Faculty, and Students engineered directly into the UI architecture with strict database RLS policies.</p>
+                </div>
+
+                <div class="glass-panel feature-card reveal delay-100">
+                    <div class="feature-icon-wrapper">
+                        <i data-lucide="smartphone"></i>
+                    </div>
+                    <h3 class="feature-title">Multi-Strategy Scanning</h3>
+                    <p class="feature-desc">Dynamically fallback across 4 BLE scan modes (Low Latency, Balanced, Low Power, Opportunistic) ensuring deep compatibility across raw Android OEM hardware.</p>
+                </div>
+
+                <div class="glass-panel feature-card reveal delay-200">
+                    <div class="feature-icon-wrapper">
+                        <i data-lucide="layers"></i>
+                    </div>
+                    <h3 class="feature-title">Android Optimized</h3>
+                    <p class="feature-desc">Built completely in Dart utilizing the Flutter 3.x framework. Compiles directly to native ARM code delivering performance on Android platforms.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Workflow Section -->
+    <section id="workflow" style="background: rgba(255,255,255,0.01); border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle);">
+        <div class="container">
+            <div class="section-header reveal">
+                <div class="badge text-mono" style="margin-bottom: 16px;">Execution Flow</div>
+                <h2 class="section-title">System Mechanics</h2>
+            </div>
+
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 48px; align-items: center;">
+                
+                <div class="reveal">
+                    <h3 style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                        <i data-lucide="terminal" style="color: var(--text-secondary);"></i>
+                        Faculty Lifecycle
+                    </h3>
+                    <ol style="color: var(--text-secondary); padding-left: 20px; display: flex; flex-direction: column; gap: 12px; font-size: 0.9375rem;">
+                        <li>Authenticate securely via Supabase Auth standard protocol.</li>
+                        <li>Configure session metadata (department, batch, structural parameters).</li>
+                        <li>Initiate peripheral BLE broadcast. Device emits tokenized <span class="text-mono" style="color: var(--accent-main); font-size: 0.8em;">0000FFF0...</span> UUID.</li>
+                        <li>Monitor real-time webhook responses natively in the dashboard view.</li>
+                        <li>Terminate advertising state to finalize session block into immutable record.</li>
+                    </ol>
+                </div>
+
+                <div class="terminal-window reveal delay-200 text-mono">
+                    <div class="terminal-header">
+                        <div class="terminal-dot dot-red"></div>
+                        <div class="terminal-dot dot-yellow"></div>
+                        <div class="terminal-dot dot-green"></div>
+                        <div style="margin-left:auto; color: var(--text-muted); font-size: 0.75rem;">system-log.sh</div>
+                    </div>
+                    <div class="terminal-body" id="term-typing">
+                        <div class="term-comment"># Initializing Student Scan Protocol...</div>
+                        <div class="term-prompt">bluetoothctl power on</div>
+                        <div class="term-output">[CHG] Controller XX:XX:XX:XX:XX:XX Powered: yes</div>
+                        <div class="term-prompt">scan_strategy --mode=low_latency</div>
+                        <div class="term-output">Scanning for BM_TOKEN_A8F2...</div>
+                        <div class="term-output" style="color: #22c55e;">[OK] Beacon Resolved: -42dBm constraint</div>
+                        <div class="term-prompt">db_txn --insert attendance values(...)</div>
+                        <div class="term-output" style="color: #22c55e;">[OK] 1 row affected. Latency: 42ms.</div>
+                        <div class="term-prompt blink" style="color: #fff;">_</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture / Stack -->
+    <section id="architecture">
+        <div class="container">
+            <div class="section-header reveal">
+                <h2 class="section-title">Technology Stack</h2>
+                <p class="section-subtitle">Purpose built with core modern primitives.</p>
+            </div>
+
+            <div class="stack-flex reveal delay-100">
+                <div class="stack-pill"><i data-lucide="smartphone"></i> Flutter (Dart)</div>
+                <div class="stack-pill"><i data-lucide="database"></i> Supabase Postgres</div>
+                <div class="stack-pill"><i data-lucide="radio-receiver"></i> flutter_blue_plus</div>
+                <div class="stack-pill"><i data-lucide="radio-tower"></i> ble_peripheral</div>
+                <div class="stack-pill"><i data-lucide="scan"></i> google_mlkit_face_detection</div>
+                <div class="stack-pill"><i data-lucide="lock"></i> permission_handler</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container text-mono" style="font-size: 0.875rem;">
+            <p style="margin-bottom: 8px;">MIT License &copy; 2026 BluMark Project.</p>
+            <p style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                Engineered with <i data-lucide="heart" style="width: 14px; color: var(--accent-main); fill: var(--accent-main);"></i> and Flutter
+            </p>
+            <div style="margin-top: 24px; display: flex; justify-content: center; gap: 16px;">
+                <a href="https://github.com/almas-cp/blumark" style="color: var(--text-muted); text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">GitHub</a>
+                <span>•</span>
+                <a href="#" style="color: var(--text-muted); text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">Documentation</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+        // Initialize Icons
+        lucide.createIcons();
+
+        // Remove Loader
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                document.getElementById('loader').classList.add('hidden');
+            }, 600); // Slight delay for aesthetic transition
+        });
+
+        // Intersection Observer for Reveal Animations
+        const observerOptions = {
+            root: null,
+            rootMargin: '0px',
+            threshold: 0.15
+        };
+
+        const observer = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active');
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.reveal').forEach((el) => {
+            observer.observe(el);
+        });
+
+        // Terminal Blinking Cursor Fix
+        const blink = document.querySelector('.blink');
+        if(blink) {
+            setInterval(() => {
+                blink.style.opacity = blink.style.opacity === '0' ? '1' : '0';
+            }, 500);
+        }
+
+        // Nav shrink on scroll
+        const nav = document.querySelector('.glass-nav');
+        window.addEventListener('scroll', () => {
+            if(window.scrollY > 50) {
+                nav.style.transform = 'translate(-50%, -10px) scale(0.98)';
+                nav.style.background = 'rgba(5, 5, 5, 0.8)';
+            } else {
+                nav.style.transform = 'translate(-50%, 0) scale(1)';
+                nav.style.background = 'rgba(10, 10, 10, 0.6)';
+            }
+        });
+    </script>
+</body>
+</html>
