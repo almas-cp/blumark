@@ -1,743 +1,982 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="BluMark - Bluetooth-Powered Smart Attendance System">
-    <title>BluMark | Future of Attendance</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BluMark | Bluetooth-Powered Smart Attendance System</title>
+  <meta name="description" content="Automate classroom attendance with BLE beacons, real-time sync, and AR head counting">
+  <link rel="icon" type="image/png" href="icon.png">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    :root {
+      --bg-color: #050b14;
+      --surface-color: rgba(17, 24, 39, 0.4);
+      --surface-border: rgba(255, 255, 255, 0.1);
+      --surface-hover: rgba(255, 255, 255, 0.05);
+      --primary: #0082FC;
+      --primary-glow: rgba(0, 130, 252, 0.4);
+      --secondary: #3FCF8E;
+      --accent: #A0B3D6;
+      --text: #F9FAFB;
+      --text-muted: #9CA3AF;
+    }
     
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
     
-    <!-- Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    html {
+      scroll-behavior: smooth;
+    }
 
-    <style>
-        /* 
-         * DESIGN SYSTEM & VARIABLES
-         */
-        :root {
-            --bg-base: #050505;
-            --bg-surface: rgba(20, 20, 22, 0.6);
-            --bg-surface-hover: rgba(30, 30, 35, 0.8);
-            
-            --border-subtle: rgba(255, 255, 255, 0.08);
-            --border-highlight: rgba(255, 255, 255, 0.15);
-            --border-accent: rgba(56, 189, 248, 0.4);
-            
-            --text-primary: #ededed;
-            --text-secondary: #a0a0a0;
-            --text-muted: #6b6b6b;
-            
-            --accent-main: #38bdf8;
-            --accent-secondary: #818cf8;
-            --accent-glow: rgba(56, 189, 248, 0.25);
-            --accent-glow-strong: rgba(56, 189, 248, 0.5);
-            
-            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            
-            --radius-md: 12px;
-            --radius-lg: 16px;
-            --radius-xl: 24px;
-            --radius-full: 9999px;
-            
-            --ease-spring: cubic-bezier(0.25, 1.5, 0.5, 1);
-            --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-            --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-        }
+    /* Animated Background */
+    .bg-blobs {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -1;
+      overflow: hidden;
+      pointer-events: none;
+    }
 
-        /* 
-         * RESET & BASE
-         */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            scroll-behavior: smooth;
-        }
+    .blob {
+      position: absolute;
+      filter: blur(120px);
+      border-radius: 50%;
+      opacity: 0.6;
+      animation: float 20s infinite ease-in-out alternate;
+    }
 
-        body {
-            font-family: var(--font-sans);
-            background-color: var(--bg-base);
-            color: var(--text-primary);
-            line-height: 1.6;
-            overflow-x: hidden;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
+    .blob-1 {
+      top: -10%; left: -10%;
+      width: 50vw; height: 50vw;
+      background: rgba(0, 130, 252, 0.15);
+      animation-delay: 0s;
+    }
 
-        ::selection {
-            background-color: rgba(56, 189, 248, 0.3);
-            color: #fff;
-        }
+    .blob-2 {
+      bottom: -20%; right: -10%;
+      width: 60vw; height: 60vw;
+      background: rgba(63, 207, 142, 0.1);
+      animation-delay: -5s;
+    }
+    
+    .blob-3 {
+      top: 30%; left: 50%;
+      width: 40vw; height: 40vw;
+      background: rgba(1, 117, 194, 0.1);
+      animation-delay: -10s;
+    }
 
-        /* 
-         * TYPOGRAPHY
-         */
-        h1, h2, h3, h4, h5, h6 {
-            font-weight: 700;
-            letter-spacing: -0.02em;
-            line-height: 1.1;
-        }
+    @keyframes float {
+      0% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(5%, 10%) scale(1.1); }
+      100% { transform: translate(-5%, 5%) scale(0.95); }
+    }
 
-        .text-mono {
-            font-family: var(--font-mono);
-            letter-spacing: -0.01em;
-        }
+    /* Glassmorphism utility */
+    .glass {
+      background: var(--surface-color);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--surface-border);
+      border-radius: 24px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    }
 
-        .gradient-text {
-            background: linear-gradient(135deg, #fff 0%, #a0a0a0 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
 
-        .gradient-accent {
-            background: linear-gradient(135deg, var(--accent-main) 0%, var(--accent-secondary) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
+    /* Navigation */
+    header {
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 48px);
+      max-width: 1200px;
+      z-index: 100;
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.3s ease;
+    }
+    
+    header.scrolled {
+      padding: 12px 32px;
+      background: rgba(17, 24, 39, 0.8);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+    
+    .logo {
+      font-size: 24px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--text);
+      text-decoration: none;
+      letter-spacing: -0.5px;
+    }
+    
+    .logo i {
+      color: var(--primary);
+      background: linear-gradient(135deg, #0082FC, #3FCF8E);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-size: 26px;
+    }
 
-        /* 
-         * LAYOUT & BACKGROUND
-         */
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 24px;
-        }
+    nav {
+      display: flex;
+      gap: 32px;
+    }
+    
+    nav a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 15px;
+      transition: color 0.3s;
+      position: relative;
+    }
+    
+    nav a:hover {
+      color: var(--text);
+    }
+    
+    nav a::after {
+      content: '';
+      position: absolute;
+      width: 0;
+      height: 2px;
+      bottom: -4px;
+      left: 0;
+      background: var(--primary);
+      transition: width 0.3s ease;
+    }
+    
+    nav a:hover::after {
+      width: 100%;
+    }
 
-        #bg-mesh {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            z-index: -1;
-            background: 
-                radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.08), transparent 25%),
-                radial-gradient(circle at 85% 30%, rgba(129, 140, 248, 0.08), transparent 25%);
-            filter: blur(80px);
-            pointer-events: none;
-        }
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 14px 28px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 15px;
+      text-decoration: none;
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      cursor: pointer;
+      border: none;
+      font-family: inherit;
+      position: relative;
+      overflow: hidden;
+    }
 
-        .grid {
-            display: grid;
-            gap: 24px;
-        }
+    .btn-primary {
+      background: linear-gradient(135deg, #0082FC 0%, #0175C2 100%);
+      color: white;
+      box-shadow: 0 8px 24px var(--primary-glow);
+    }
 
-        /* 
-         * LOADER
-         */
-        #loader {
-            position: fixed;
-            inset: 0;
-            background: var(--bg-base);
-            z-index: 9999;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            transition: opacity 0.8s var(--ease-in-out), visibility 0.8s;
-        }
-        
-        #loader.hidden {
-            opacity: 0;
-            visibility: hidden;
-        }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 32px var(--primary-glow);
+    }
+    
+    .btn-primary::after {
+      content: '';
+      position: absolute;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background: rgba(255,255,255,0.2);
+      transform: rotate(45deg);
+      transition: all 0.3s ease;
+      opacity: 0;
+    }
+    
+    .btn-primary:hover::after {
+      opacity: 1;
+      transform: rotate(45deg) translate(50%, -50%);
+    }
 
-        .spinner {
-            width: 48px;
-            height: 48px;
-            border: 2px solid var(--border-subtle);
-            border-top-color: var(--accent-main);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
+    .btn-outline {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--surface-border);
+      color: var(--text);
+      backdrop-filter: blur(10px);
+    }
+    
+    .btn-outline:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
 
-        .loader-text {
-            margin-top: 24px;
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-        }
+    /* Hero Section */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding-top: 80px;
+    }
 
-        @keyframes spin { 100% { transform: rotate(360deg); } }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: rgba(0, 130, 252, 0.08);
+      border: 1px solid rgba(0, 130, 252, 0.2);
+      border-radius: 30px;
+      color: #74B9FF;
+      font-weight: 500;
+      font-size: 14px;
+      margin-bottom: 32px;
+      animation: fadeUp 0.8s ease forwards;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    
+    .hero-badge i {
+      color: #3FCF8E;
+    }
 
-        /* 
-         * GLASSMORPHISM UI COMPONENTS
-         */
-        .glass-panel {
-            background: var(--bg-surface);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
-            border: 1px solid var(--border-subtle);
-            border-radius: var(--radius-lg);
-            transition: all 0.4s var(--ease-out);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .glass-panel::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0; height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-            opacity: 0;
-            transition: opacity 0.4s ease;
-        }
+    .hero h1 {
+      font-size: clamp(40px, 7vw, 76px);
+      font-weight: 800;
+      line-height: 1.1;
+      margin-bottom: 24px;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #FFFFFF 0%, #9CA3AF 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: fadeUp 0.8s ease 0.1s forwards;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    
+    .hero h1 span {
+      background: linear-gradient(135deg, #0082FC 0%, #3FCF8E 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
 
-        .glass-panel:hover {
-            background: var(--bg-surface-hover);
-            border-color: var(--border-highlight);
-            transform: translateY(-4px);
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 
-                        0 0 0 1px rgba(255,255,255,0.05) inset;
-        }
-        
-        .glass-panel:hover::before {
-            opacity: 1;
-        }
+    .hero p.subtitle {
+      font-size: clamp(18px, 2vw, 22px);
+      color: var(--text-muted);
+      max-width: 650px;
+      margin-bottom: 40px;
+      animation: fadeUp 0.8s ease 0.2s forwards;
+      opacity: 0;
+      transform: translateY(20px);
+      line-height: 1.5;
+    }
 
-        .glass-nav {
-            position: fixed;
-            top: 24px; left: 50%;
-            transform: translateX(-50%);
-            width: calc(100% - 48px);
-            max-width: 1000px;
-            background: rgba(10, 10, 10, 0.6);
-            backdrop-filter: blur(32px);
-            -webkit-backdrop-filter: blur(32px);
-            border: 1px solid var(--border-subtle);
-            border-radius: var(--radius-full);
-            padding: 12px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 100;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.4);
-            transition: transform 0.6s var(--ease-out);
-        }
+    .btn-group {
+      display: flex;
+      gap: 16px;
+      animation: fadeUp 0.8s ease 0.3s forwards;
+      opacity: 0;
+      transform: translateY(20px);
+    }
 
-        /* 
-         * BUTTONS & INTERACTIVE
-         */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            padding: 12px 24px;
-            font-size: 0.9375rem;
-            font-weight: 500;
-            border-radius: var(--radius-full);
-            cursor: pointer;
-            transition: all 0.3s var(--ease-out);
-            text-decoration: none;
-            position: relative;
-            overflow: hidden;
-            font-family: var(--font-sans);
-            outline: none;
-        }
+    .tech-badges {
+      margin-top: 80px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      animation: fadeUp 0.8s ease 0.4s forwards;
+      opacity: 0;
+      transform: translateY(20px);
+    }
 
-        .btn:focus-visible {
-            box-shadow: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--accent-main);
-        }
+    .tech-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 30px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--surface-border);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      transition: all 0.3s ease;
+    }
+    
+    .tech-badge:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+    }
 
-        .btn-primary {
-            background: var(--text-primary);
-            color: var(--bg-base);
-            border: none;
-        }
+    /* Sections Shared */
+    section {
+      padding: 100px 0;
+      position: relative;
+    }
 
-        .btn-primary:hover {
-            transform: scale(1.02);
-            box-shadow: 0 8px 24px rgba(255, 255, 255, 0.15);
-        }
+    .section-header {
+      text-align: center;
+      margin-bottom: 64px;
+      max-width: 700px;
+      margin-inline: auto;
+    }
 
-        .btn-glass {
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-primary);
-            border: 1px solid var(--border-subtle);
-            backdrop-filter: blur(12px);
-        }
+    .section-title {
+      font-size: clamp(32px, 4vw, 42px);
+      font-weight: 700;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+    
+    .section-title span {
+      color: var(--primary);
+    }
 
-        .btn-glass:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: var(--border-highlight);
-            transform: scale(1.02);
-        }
+    .section-subtitle {
+      color: var(--text-muted);
+      font-size: 18px;
+    }
 
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 12px;
-            background: rgba(56, 189, 248, 0.1);
-            color: var(--accent-main);
-            border: 1px solid rgba(56, 189, 248, 0.2);
-            border-radius: var(--radius-full);
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
+    /* About Quote */
+    .about-section {
+      padding: 40px 0 80px;
+    }
+    
+    .about-quote {
+      padding: 48px;
+      text-align: center;
+      margin: 0 auto;
+      max-width: 800px;
+      border-left: 4px solid var(--primary);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .about-quote::before {
+      content: '"';
+      position: absolute;
+      top: 10px;
+      left: 20px;
+      font-size: 120px;
+      color: rgba(255,255,255,0.03);
+      font-family: serif;
+      line-height: 1;
+    }
+    
+    .about-quote p {
+      font-size: clamp(20px, 3vw, 26px);
+      font-weight: 300;
+      color: #E5E7EB;
+      position: relative;
+      z-index: 1;
+    }
+    
+    .about-quote strong {
+      color: white;
+      font-weight: 600;
+    }
 
-        /* 
-         * SECTIONS
-         */
-        section {
-            padding: 120px 0;
-            position: relative;
-        }
+    /* Features Grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+    }
 
-        /* HERO */
-        .hero {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding-top: 80px;
-        }
+    .feature-card {
+      padding: 32px;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
 
-        .hero-title {
-            font-size: clamp(3rem, 6vw, 5rem);
-            margin: 24px 0;
-            line-height: 1;
-        }
+    .feature-card:hover {
+      transform: translateY(-8px);
+      background: var(--surface-hover);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
 
-        .hero-desc {
-            font-size: clamp(1.125rem, 2vw, 1.25rem);
-            color: var(--text-secondary);
-            max-width: 600px;
-            margin: 0 auto 40px;
-        }
+    .feature-icon-wrapper {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: rgba(0, 130, 252, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+      position: relative;
+    }
+    
+    .feature-card:nth-child(2n) .feature-icon-wrapper {
+      background: rgba(63, 207, 142, 0.1);
+    }
+    .feature-card:nth-child(2n) .feature-icon { color: var(--secondary); }
+    
+    .feature-icon {
+      color: var(--primary);
+      font-size: 24px;
+      z-index: 2;
+    }
 
-        .hero-actions {
-            display: flex;
-            gap: 16px;
-            justify-content: center;
-            align-items: center;
-        }
+    .feature-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      letter-spacing: -0.01em;
+    }
 
-        /* FEATURES */
-        .section-header {
-            text-align: center;
-            margin-bottom: 64px;
-        }
+    .feature-desc {
+      color: var(--text-muted);
+      font-size: 15px;
+      line-height: 1.6;
+      flex-grow: 1;
+    }
 
-        .section-title {
-            font-size: 2.5rem;
-            margin-bottom: 16px;
-        }
+    /* Workflow */
+    .workflow-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+    
+    .workflow-col {
+      padding: 40px;
+    }
 
-        .section-subtitle {
-            color: var(--text-secondary);
-            font-size: 1.125rem;
-            font-family: var(--font-mono);
-        }
+    .workflow-col h3 {
+      font-size: 24px;
+      margin-bottom: 40px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .workflow-step {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 32px;
+      position: relative;
+    }
+    
+    .workflow-step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      left: 19px;
+      top: 50px;
+      bottom: -20px;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--primary), transparent);
+      opacity: 0.3;
+    }
 
-        .features-grid {
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        }
+    .step-number {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(0, 130, 252, 0.15);
+      border: 1px solid rgba(0, 130, 252, 0.3);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      flex-shrink: 0;
+      z-index: 1;
+    }
 
-        .feature-card {
-            padding: 32px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
+    .step-content h4 {
+      font-size: 18px;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    
+    .step-content p {
+      color: var(--text-muted);
+      font-size: 15px;
+      line-height: 1.5;
+    }
 
-        .feature-icon-wrapper {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            background: rgba(255,255,255,0.05);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--accent-main);
-            border: 1px solid var(--border-subtle);
-            transition: all 0.3s var(--ease-out);
-        }
+    /* Installation Command */
+    .terminal-wrapper {
+      position: relative;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    .terminal {
+      background: #0D1117;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.1);
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+    
+    .terminal-header {
+      background: #161B22;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    
+    .mac-btn {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+    }
+    .mac-btn.close { background: #FF5F56; }
+    .mac-btn.min { background: #FFBD2E; }
+    .mac-btn.max { background: #27C93F; }
+    
+    .terminal-title {
+      margin-left: auto;
+      margin-right: auto;
+      font-size: 12px;
+      color: #8B949E;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    
+    .terminal-body {
+      padding: 32px 24px;
+      font-family: 'JetBrains Mono', monospace;
+      color: #E6EDF3;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    
+    .terminal-body .comment { color: #8B949E; }
+    .terminal-body .command { color: #58A6FF; }
+    .terminal-body .prompt { color: #3FCF8E; margin-right: 8px; user-select: none; }
+    
+    .copy-btn {
+      position: absolute;
+      top: 56px;
+      right: 20px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: white;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .copy-btn:hover { 
+      background: rgba(255,255,255,0.2); 
+    }
 
-        .feature-card:hover .feature-icon-wrapper {
-            background: var(--accent-main);
-            color: var(--bg-base);
-            transform: scale(1.1) rotate(-5deg);
-            box-shadow: 0 0 20px var(--accent-glow);
-        }
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--surface-border);
+      padding: 48px 0;
+      margin-top: 60px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .footer-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+    
+    .footer-links {
+      display: flex;
+      gap: 24px;
+    }
+    
+    .footer-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 20px;
+      transition: color 0.3s;
+    }
+    
+    .footer-links a:hover {
+      color: white;
+    }
+    
+    .copyright {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+    
+    .heart { 
+      color: #0082FC; 
+      display: inline-block; 
+      animation: pulse 1.5s infinite; 
+    }
 
-        .feature-title {
-            font-size: 1.25rem;
-            font-weight: 600;
-        }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
 
-        .feature-desc {
-            color: var(--text-secondary);
-            font-size: 0.9375rem;
-        }
-
-        /* WORKFLOW / TERMINAL */
-        .terminal-window {
-            background: #000;
-            border-radius: var(--radius-md);
-            border: 1px solid var(--border-subtle);
-            overflow: hidden;
-            box-shadow: 0 24px 48px rgba(0,0,0,0.5);
-        }
-
-        .terminal-header {
-            background: rgba(255,255,255,0.05);
-            padding: 12px 16px;
-            display: flex;
-            gap: 8px;
-            border-bottom: 1px solid var(--border-subtle);
-        }
-
-        .terminal-dot {
-            width: 12px; height: 12px;
-            border-radius: 50%;
-        }
-        .dot-red { background: #ef4444; }
-        .dot-yellow { background: #eab308; }
-        .dot-green { background: #22c55e; }
-
-        .terminal-body {
-            padding: 24px;
-            color: var(--accent-main);
-            font-size: 0.875rem;
-            line-height: 1.7;
-            overflow-x: auto;
-        }
-
-        .term-prompt::before {
-            content: '$ ';
-            color: var(--text-muted);
-        }
-
-        .term-comment { color: var(--text-muted); }
-        .term-output { color: var(--text-secondary); }
-
-        /* TECH STACK */
-        .stack-flex {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 16px;
-            justify-content: center;
-        }
-
-        .stack-pill {
-            padding: 12px 24px;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--border-subtle);
-            border-radius: var(--radius-full);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-family: var(--font-mono);
-            font-size: 0.875rem;
-            transition: all 0.3s var(--ease-out);
-        }
-
-        .stack-pill:hover {
-            border-color: var(--border-accent);
-            background: rgba(56, 189, 248, 0.05);
-            box-shadow: 0 0 15px var(--accent-glow);
-            transform: translateY(-2px);
-        }
-
-        /* FOOTER */
-        footer {
-            border-top: 1px solid var(--border-subtle);
-            padding: 48px 0;
-            text-align: center;
-            color: var(--text-muted);
-        }
-
-        /* 
-         * ANIMATIONS & UTILS
-         */
-        .reveal {
-            opacity: 0;
-            transform: translateY(30px);
-            transition: opacity 0.8s var(--ease-out), transform 0.8s var(--ease-out);
-            will-change: opacity, transform;
-        }
-
-        .reveal.active {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .delay-100 { transition-delay: 100ms; }
-        .delay-200 { transition-delay: 200ms; }
-        .delay-300 { transition-delay: 300ms; }
-
-        @media (max-width: 768px) {
-            .glass-nav {
-                padding: 12px;
-                width: calc(100% - 24px);
-            }
-            .nav-links { display: none; }
-            .hero-actions { flex-direction: column; }
-            .btn { width: 100%; }
-        }
-    </style>
+    /* Responsive */
+    @media (max-width: 992px) {
+      .workflow-container { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 56px; }
+    }
+    
+    @media (max-width: 768px) {
+      header {
+        padding: 16px;
+        width: calc(100% - 32px);
+      }
+      nav, .header-actions { display: none; }
+      
+      .hero h1 { font-size: 40px; }
+      .btn-group { flex-direction: column; width: 100%; max-width: 300px; margin: 0 auto; }
+      .btn { width: 100%; }
+      
+      .workflow-col { padding: 32px 20px; }
+      .about-quote { padding: 32px 24px; }
+    }
+  </style>
 </head>
 <body>
 
-    <!-- Loading Screen -->
-    <div id="loader">
-        <div class="spinner"></div>
-        <div class="loader-text text-mono">Initializing System</div>
+  <!-- Dynamic Background Background -->
+  <div class="bg-blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
+
+  <!-- Header -->
+  <header class="glass" id="navbar">
+    <a href="#" class="logo">
+      <i class="fa-solid fa-shapes"></i>
+      BluMark
+    </a>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#workflow">How It Works</a>
+      <a href="#install">Install</a>
+    </nav>
+    <div class="header-actions">
+      <a href="https://github.com/almas-cp/blumark" target="_blank" class="btn btn-outline" style="padding: 10px 20px; font-size: 14px;">
+        <i class="fa-brands fa-github"></i> GitHub
+      </a>
+    </div>
+</header>
+
+  <!-- Hero Section -->
+  <section class="hero container">
+    <div class="hero-badge">
+      <i class="fa-solid fa-bolt"></i>
+      Attendance Automated
+    </div>
+    <h1>Bluetooth-Powered<br><span>Smart Attendance</span></h1>
+    <p class="subtitle">
+      Automate classroom attendance with BLE beacons, real-time sync, and AR head counting. Eliminate proxy attendance and paper trails forever.
+    </p>
+    <div class="btn-group">
+      <a href="#install" class="btn btn-primary">
+        Get Started <i class="fa-solid fa-arrow-right"></i>
+      </a>
+      <a href="https://github.com/almas-cp/blumark" target="_blank" class="btn btn-outline">
+        <i class="fa-solid fa-star"></i> Star on GitHub
+      </a>
+    </div>
+    
+    <div class="tech-badges">
+      <div class="tech-badge"><i class="fa-brands fa-flutter" style="color: #0175C2"></i> Flutter 3.x</div>
+      <div class="tech-badge"><i class="fa-solid fa-database" style="color: #3FCF8E"></i> Supabase Backend</div>
+      <div class="tech-badge"><i class="fa-brands fa-bluetooth-b" style="color: #0082FC"></i> BLE 5.0</div>
+      <div class="tech-badge"><i class="fa-brands fa-android" style="color: #3DDC84"></i> Android</div>
+      <div class="tech-badge"><i class="fa-brands fa-apple" style="color: #A3AAAE"></i> iOS</div>
+    </div>
+  </section>
+
+  <!-- About Section -->
+  <section class="about-section container" id="about">
+    <div class="about-quote glass">
+      <p>
+        <strong>BluMark</strong> is a Flutter-based mobile app that revolutionizes classroom attendance using BLE technology. No manual roll calls. No proxy attendance. No paper.
+      </p>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section id="features" class="container">
+    <div class="section-header">
+      <h2 class="section-title">Powerful <span>Features</span></h2>
+      <p class="section-subtitle">Everything you need to manage classroom attendance effortlessly.</p>
+    </div>
+    
+    <div class="features-grid">
+      <div class="feature-card glass">
+        <div class="feature-icon-wrapper">
+          <i class="fa-solid fa-podcast feature-icon"></i>
+        </div>
+        <h3 class="feature-title">BLE Attendance</h3>
+        <p class="feature-desc">Faculty devices broadcast sessions as Bluetooth beacons while students scan to check in automatically.</p>
+      </div>
+      
+      <div class="feature-card glass">
+        <div class="feature-icon-wrapper">
+          <i class="fa-solid fa-users-gear feature-icon"></i>
+        </div>
+        <h3 class="feature-title">Role-Based Access</h3>
+        <p class="feature-desc">Dedicated dashboards and customized functionalities for Admins, Faculty, and Students.</p>
+      </div>
+
+      <div class="feature-card glass">
+        <div class="feature-icon-wrapper">
+          <i class="fa-solid fa-cloud-bolt feature-icon"></i>
+        </div>
+        <h3 class="feature-title">Real-Time Sync</h3>
+        <p class="feature-desc">Instant cloud synchronization with Supabase Realtime for live attendance tracking.</p>
+      </div>
+
+      <div class="feature-card glass">
+        <div class="feature-icon-wrapper">
+          <i class="fa-solid fa-satellite-dish feature-icon"></i>
+        </div>
+        <h3 class="feature-title">Multi-Strategy Scanning</h3>
+        <p class="feature-desc">Dynamic scanning modes (Low Latency, Balanced, Low Power) ensuring broad Android/iOS compatibility.</p>
+      </div>
+
+      <div class="feature-card glass">
+        <div class="feature-icon-wrapper">
+          <i class="fa-solid fa-vr-cardboard feature-icon"></i>
+        </div>
+        <h3 class="feature-title">AR Head Counting</h3>
+        <p class="feature-desc">Count students via camera using Google ML Kit face detection with an innovative 180° sweep support.</p>
+      </div>
+
+      <div class="feature-card glass">
+        <div class="feature-icon-wrapper">
+          <i class="fa-solid fa-mobile-screen-button feature-icon"></i>
+        </div>
+        <h3 class="feature-title">Cross-Platform</h3>
+        <p class="feature-desc">Built completely with Flutter to ensure a seamless experience on both Android and iOS devices.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Workflow Section -->
+  <section id="workflow" class="container">
+    <div class="section-header">
+      <h2 class="section-title">How It <span>Works</span></h2>
+      <p class="section-subtitle">A seamless experience for both faculty members and students.</p>
     </div>
 
-    <!-- Background Mesh -->
-    <div id="bg-mesh"></div>
-
-    <!-- Navigation -->
-    <nav class="glass-nav reveal">
-        <div style="font-weight: 700; font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">
-            <i data-lucide="bluetooth" style="color: var(--accent-main); width: 20px;"></i>
-            BluMark
+    <div class="workflow-container">
+      <div class="workflow-col glass">
+        <h3><i class="fa-solid fa-person-chalkboard" style="color: var(--primary)"></i> Faculty Flow</h3>
+        
+        <div class="workflow-step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h4>Configure Session</h4>
+            <p>Faculty logs in to the dashboard and sets details like department, batch, and date.</p>
+          </div>
         </div>
-        <div class="nav-links" style="display: flex; gap: 24px; font-size: 0.875rem; color: var(--text-secondary);">
-            <a href="#features" style="color: inherit; text-decoration: none; transition: color 0.2s;">Features</a>
-            <a href="#workflow" style="color: inherit; text-decoration: none; transition: color 0.2s;">Workflow</a>
-            <a href="#architecture" style="color: inherit; text-decoration: none; transition: color 0.2s;">Architecture</a>
+        
+        <div class="workflow-step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h4>Start Broadcasting</h4>
+            <p>The device starts broadcasting a unique BLE beacon for the classroom.</p>
+          </div>
         </div>
-        <a href="https://github.com/almas-cp/blumark" class="btn btn-glass" style="padding: 8px 16px; font-size: 0.875rem;">
-            <i data-lucide="github" style="width: 16px;"></i> Repository
-        </a>
-    </nav>
-
-    <!-- Hero Section -->
-    <header class="hero">
-        <div class="container" style="display: flex; flex-direction: column; align-items: center; position: relative;">
-            
-            <div class="badge reveal text-mono">
-                <span style="display: inline-block; width: 6px; height: 6px; background: var(--accent-main); border-radius: 50%; box-shadow: 0 0 8px var(--accent-main);"></span>
-                System v1.0.0 Online
-            </div>
-            
-            <h1 class="hero-title reveal delay-100">
-                Attendance, <br />
-                <span class="gradient-text">Engineered for the Future.</span>
-            </h1>
-            
-            <p class="hero-desc reveal delay-200">
-                Automate classroom roll calls with high-precision BLE beacons, real-time Supabase sync, and ML Kit AR head counting. Zero manual entry. Zero proxies.
-            </p>
-            
-            <div class="hero-actions reveal delay-300">
-                <a href="#workflow" class="btn btn-primary">
-                    Initialize Setup <i data-lucide="arrow-right" style="width: 18px;"></i>
-                </a>
-                <a href="https://github.com/almas-cp/blumark" class="btn btn-glass">
-                    View Architecture
-                </a>
-            </div>
-
+        
+        <div class="workflow-step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h4>Monitor Real-Time</h4>
+            <p>Watch as student check-ins populate the list instantly via Supabase.</p>
+          </div>
         </div>
-    </header>
+      </div>
 
-    <!-- Features Section -->
-    <section id="features">
-        <div class="container">
-            <div class="section-header reveal">
-                <div class="badge text-mono" style="margin-bottom: 16px;">Capabilities</div>
-                <h2 class="section-title">High-Fidelity Tracking</h2>
-                <p class="section-subtitle">Powered by multi-strategy scanning and edge AI.</p>
-            </div>
-
-            <div class="grid features-grid">
-                <div class="glass-panel feature-card reveal">
-                    <div class="feature-icon-wrapper">
-                        <i data-lucide="radio"></i>
-                    </div>
-                    <h3 class="feature-title">BLE Beacon Protocol</h3>
-                    <p class="feature-desc">Faculty devices broadcast secure, low-latency Bluetooth beacons. Students scan to instantly verify physical presence within the classroom perimeter.</p>
-                </div>
-
-                <div class="glass-panel feature-card reveal delay-100">
-                    <div class="feature-icon-wrapper">
-                        <i data-lucide="database"></i>
-                    </div>
-                    <h3 class="feature-title">Real-Time Sync</h3>
-                    <p class="feature-desc">Instantaneous cloud state synchronization via Supabase Realtime via PostgreSQL. Check-ins are reflected on faculty dashboards with millisecond latency.</p>
-                </div>
-
-                <div class="glass-panel feature-card reveal delay-200">
-                    <div class="feature-icon-wrapper">
-                        <i data-lucide="scan-face"></i>
-                    </div>
-                    <h3 class="feature-title">AR Head Counting</h3>
-                    <p class="feature-desc">Integrates Google ML Kit face detection for secondary verification. Perform a 180° camera sweep to algorithmically cross-reference physical attendance.</p>
-                </div>
-
-                <div class="glass-panel feature-card reveal">
-                    <div class="feature-icon-wrapper">
-                        <i data-lucide="shield-check"></i>
-                    </div>
-                    <h3 class="feature-title">Role-Based Access Control</h3>
-                    <p class="feature-desc">Isolated operational contexts for Admins, Faculty, and Students engineered directly into the UI architecture with strict database RLS policies.</p>
-                </div>
-
-                <div class="glass-panel feature-card reveal delay-100">
-                    <div class="feature-icon-wrapper">
-                        <i data-lucide="smartphone"></i>
-                    </div>
-                    <h3 class="feature-title">Multi-Strategy Scanning</h3>
-                    <p class="feature-desc">Dynamically fallback across 4 BLE scan modes (Low Latency, Balanced, Low Power, Opportunistic) ensuring deep compatibility across raw Android OEM hardware.</p>
-                </div>
-
-                <div class="glass-panel feature-card reveal delay-200">
-                    <div class="feature-icon-wrapper">
-                        <i data-lucide="layers"></i>
-                    </div>
-                    <h3 class="feature-title">Android Optimized</h3>
-                    <p class="feature-desc">Built completely in Dart utilizing the Flutter 3.x framework. Compiles directly to native ARM code delivering performance on Android platforms.</p>
-                </div>
-            </div>
+      <div class="workflow-col glass">
+        <h3><i class="fa-solid fa-user-graduate" style="color: var(--secondary)"></i> Student Flow</h3>
+        
+        <div class="workflow-step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h4>Open Student Dashboard</h4>
+            <p>Student logs in to their profile on their Android or iOS device.</p>
+          </div>
         </div>
-    </section>
-
-    <!-- Workflow Section -->
-    <section id="workflow" style="background: rgba(255,255,255,0.01); border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle);">
-        <div class="container">
-            <div class="section-header reveal">
-                <div class="badge text-mono" style="margin-bottom: 16px;">Execution Flow</div>
-                <h2 class="section-title">System Mechanics</h2>
-            </div>
-
-            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 48px; align-items: center;">
-                
-                <div class="reveal">
-                    <h3 style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
-                        <i data-lucide="terminal" style="color: var(--text-secondary);"></i>
-                        Faculty Lifecycle
-                    </h3>
-                    <ol style="color: var(--text-secondary); padding-left: 20px; display: flex; flex-direction: column; gap: 12px; font-size: 0.9375rem;">
-                        <li>Authenticate securely via Supabase Auth standard protocol.</li>
-                        <li>Configure session metadata (department, batch, structural parameters).</li>
-                        <li>Initiate peripheral BLE broadcast. Device emits tokenized <span class="text-mono" style="color: var(--accent-main); font-size: 0.8em;">0000FFF0...</span> UUID.</li>
-                        <li>Monitor real-time webhook responses natively in the dashboard view.</li>
-                        <li>Terminate advertising state to finalize session block into immutable record.</li>
-                    </ol>
-                </div>
-
-                <div class="terminal-window reveal delay-200 text-mono">
-                    <div class="terminal-header">
-                        <div class="terminal-dot dot-red"></div>
-                        <div class="terminal-dot dot-yellow"></div>
-                        <div class="terminal-dot dot-green"></div>
-                        <div style="margin-left:auto; color: var(--text-muted); font-size: 0.75rem;">system-log.sh</div>
-                    </div>
-                    <div class="terminal-body" id="term-typing">
-                        <div class="term-comment"># Initializing Student Scan Protocol...</div>
-                        <div class="term-prompt">bluetoothctl power on</div>
-                        <div class="term-output">[CHG] Controller XX:XX:XX:XX:XX:XX Powered: yes</div>
-                        <div class="term-prompt">scan_strategy --mode=low_latency</div>
-                        <div class="term-output">Scanning for BM_TOKEN_A8F2...</div>
-                        <div class="term-output" style="color: #22c55e;">[OK] Beacon Resolved: -42dBm constraint</div>
-                        <div class="term-prompt">db_txn --insert attendance values(...)</div>
-                        <div class="term-output" style="color: #22c55e;">[OK] 1 row affected. Latency: 42ms.</div>
-                        <div class="term-prompt blink" style="color: #fff;">_</div>
-                    </div>
-                </div>
-
-            </div>
+        
+        <div class="workflow-step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h4>Scan for Sessions</h4>
+            <p>Tap "Scan for Attendance" to detect nearby faculty beacons.</p>
+          </div>
         </div>
-    </section>
-
-    <!-- Architecture / Stack -->
-    <section id="architecture">
-        <div class="container">
-            <div class="section-header reveal">
-                <h2 class="section-title">Technology Stack</h2>
-                <p class="section-subtitle">Purpose built with core modern primitives.</p>
-            </div>
-
-            <div class="stack-flex reveal delay-100">
-                <div class="stack-pill"><i data-lucide="smartphone"></i> Flutter (Dart)</div>
-                <div class="stack-pill"><i data-lucide="database"></i> Supabase Postgres</div>
-                <div class="stack-pill"><i data-lucide="radio-receiver"></i> flutter_blue_plus</div>
-                <div class="stack-pill"><i data-lucide="radio-tower"></i> ble_peripheral</div>
-                <div class="stack-pill"><i data-lucide="scan"></i> google_mlkit_face_detection</div>
-                <div class="stack-pill"><i data-lucide="lock"></i> permission_handler</div>
-            </div>
+        
+        <div class="workflow-step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h4>Automatically Marked</h4>
+            <p>On detecting the token, attendance is marked securely in the database.</p>
+          </div>
         </div>
-    </section>
+      </div>
+    </div>
+  </section>
 
-    <!-- Footer -->
-    <footer>
-        <div class="container text-mono" style="font-size: 0.875rem;">
-            <p style="margin-bottom: 8px;">MIT License &copy; 2026 BluMark Project.</p>
-            <p style="display: flex; align-items: center; justify-content: center; gap: 6px;">
-                Engineered with <i data-lucide="heart" style="width: 14px; color: var(--accent-main); fill: var(--accent-main);"></i> and Flutter
-            </p>
-            <div style="margin-top: 24px; display: flex; justify-content: center; gap: 16px;">
-                <a href="https://github.com/almas-cp/blumark" style="color: var(--text-muted); text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">GitHub</a>
-                <span>•</span>
-                <a href="#" style="color: var(--text-muted); text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">Documentation</a>
-            </div>
+  <!-- Install Section -->
+  <section id="install" class="container">
+    <div class="section-header">
+      <h2 class="section-title">Quick <span>Start</span></h2>
+      <p class="section-subtitle">Get BluMark running locally in seconds.</p>
+    </div>
+
+    <div class="terminal-wrapper">
+      <div class="terminal">
+        <div class="terminal-header">
+          <div class="mac-btn close"></div>
+          <div class="mac-btn min"></div>
+          <div class="mac-btn max"></div>
+          <div class="terminal-title">bash - blumark-setup</div>
         </div>
-    </footer>
+        <button class="copy-btn" id="copyBtn" onclick="copyCode()">
+          <i class="fa-regular fa-copy"></i> Copy
+        </button>
+        <div class="terminal-body" id="codeBlock">
+<span class="comment"># 1. Clone the repository</span>
+<span class="prompt">$</span><span class="command">git clone https://github.com/almas-cp/blumark.git</span>
 
-    <!-- Scripts -->
-    <script>
-        // Initialize Icons
-        lucide.createIcons();
+<span class="comment"># 2. Enter directory and install dependencies</span>
+<span class="prompt">$</span><span class="command">cd blumark && flutter pub get</span>
 
-        // Remove Loader
-        window.addEventListener('load', () => {
-            setTimeout(() => {
-                document.getElementById('loader').classList.add('hidden');
-            }, 600); // Slight delay for aesthetic transition
-        });
+<span class="comment"># 3. Configure Supabase (Edit lib/utils/constants.dart)</span>
+<span class="comment"># 4. Run the application</span>
+<span class="prompt">$</span><span class="command">flutter run</span></div>
+      </div>
+    </div>
+  </section>
 
-        // Intersection Observer for Reveal Animations
-        const observerOptions = {
-            root: null,
-            rootMargin: '0px',
-            threshold: 0.15
-        };
+  <!-- Footer -->
+  <footer>
+    <div class="container footer-content">
+      <div class="footer-links">
+        <a href="https://github.com/almas-cp/blumark" aria-label="GitHub"><i class="fa-brands fa-github"></i></a>
+        <a href="https://flutter.dev" aria-label="Flutter"><i class="fa-brands fa-flutter"></i></a>
+      </div>
+      <p class="copyright">Made with <span class="heart">💙</span> and Flutter</p>
+      <p style="font-size: 13px; color: var(--surface-border); margin-top: 8px;">MIT License</p>
+    </div>
+  </footer>
 
-        const observer = new IntersectionObserver((entries, observer) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('active');
-                    observer.unobserve(entry.target);
-                }
-            });
-        }, observerOptions);
+  <!-- Scripts -->
+  <script>
+    // Copy to clipboard functionality
+    function copyCode() {
+      const codeText = "git clone https://github.com/almas-cp/blumark.git\ncd blumark && flutter pub get\nflutter run";
+      navigator.clipboard.writeText(codeText).then(() => {
+        const btn = document.getElementById('copyBtn');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+        btn.style.background = 'rgba(63, 207, 142, 0.2)';
+        btn.style.borderColor = 'rgba(63, 207, 142, 0.4)';
+        btn.style.color = '#3FCF8E';
+        
+        setTimeout(() => {
+          btn.innerHTML = originalContent;
+          btn.style.background = '';
+          btn.style.borderColor = '';
+          btn.style.color = '';
+        }, 2000);
+      });
+    }
 
-        document.querySelectorAll('.reveal').forEach((el) => {
-            observer.observe(el);
-        });
+    // Navbar scroll effect
+    window.addEventListener('scroll', () => {
+      const navbar = document.getElementById('navbar');
+      if (window.scrollY > 50) {
+        navbar.classList.add('scrolled');
+      } else {
+        navbar.classList.remove('scrolled');
+      }
+    });
 
-        // Terminal Blinking Cursor Fix
-        const blink = document.querySelector('.blink');
-        if(blink) {
-            setInterval(() => {
-                blink.style.opacity = blink.style.opacity === '0' ? '1' : '0';
-            }, 500);
+    // Simple observer for fade-up animations on sections
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: "0px 0px -50px 0px"
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = "1";
+          entry.target.style.transform = "translateY(0)";
+          observer.unobserve(entry.target);
         }
+      });
+    }, observerOptions);
 
-        // Nav shrink on scroll
-        const nav = document.querySelector('.glass-nav');
-        window.addEventListener('scroll', () => {
-            if(window.scrollY > 50) {
-                nav.style.transform = 'translate(-50%, -10px) scale(0.98)';
-                nav.style.background = 'rgba(5, 5, 5, 0.8)';
-            } else {
-                nav.style.transform = 'translate(-50%, 0) scale(1)';
-                nav.style.background = 'rgba(10, 10, 10, 0.6)';
-            }
-        });
-    </script>
+    document.querySelectorAll('.feature-card, .workflow-col, .terminal').forEach((el) => {
+      el.style.opacity = "0";
+      el.style.transform = "translateY(20px)";
+      el.style.transition = "all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+      observer.observe(el);
+    });
+  </script>
 </body>
 </html>
